@@ -131,6 +131,13 @@ streetview-dl/
 - [ ] CI/CD pipeline
 - [ ] Official PyPI publication
 
+### Phase 4: Future Features (v0.2.0+)
+- [ ] **Field of View Cropping** - Crop panoramas to show only front-facing view
+  - `--fov DEGREES` option (e.g., 180°, 120°) to show just what you're looking at
+  - Needs refinement in equirectangular coordinate mapping
+  - Would eliminate distracting background areas and reduce file sizes
+  - Useful for focused street views without full 360° context
+
 ## Success Metrics ✅ ACHIEVED
 - ✅ Easy installation: `pip install -e .` (PyPI coming soon)
 - ✅ Simple usage: `streetview-dl <url>`

@@ -63,7 +63,7 @@ streetview-dl --configure
 
 ### Quality and output
 ```bash
---quality high|medium|low    # Default: high (16K+ resolution)
+--quality high|medium|low    # Default: medium (8K resolution, good balance)
 --output filename.jpg        # Custom output filename
 --format jpg|png|webp        # Image format (default: jpg)
 --jpeg-quality 85            # JPEG compression (1-100)
@@ -102,13 +102,16 @@ streetview-dl --configure
 streetview-dl "https://www.google.com/maps/@40.7589,-73.9851,3a,75y,200h,90t/data=..."
 ```
 
-### Smaller file sizes
+### Quality options
 ```bash
-# Medium quality (~2-4MB instead of 10MB+)
-streetview-dl --quality medium --jpeg-quality 75 "https://maps.url..."
+# High quality for maximum detail (16K resolution, ~10MB)
+streetview-dl --quality high "https://maps.url..."
 
-# Low quality for thumbnails (~500KB)
-streetview-dl --quality low --max-width 2048 "https://maps.url..."
+# Default medium quality (8K resolution, ~4MB, good balance)
+streetview-dl "https://maps.url..."
+
+# Low quality for thumbnails (4K resolution, ~1MB)
+streetview-dl --quality low "https://maps.url..."
 ```
 
 ### Artistic filters
@@ -123,7 +126,7 @@ streetview-dl --filter sepia --brightness 1.1 --contrast 0.9 "https://maps.url..
 ### Batch processing
 ```bash
 # Create urls.txt with one URL per line, then:
-streetview-dl --batch urls.txt --output-dir ./my-panoramas/ --quality medium
+streetview-dl --batch urls.txt --output-dir ./my-panoramas/
 ```
 
 ### Metadata extraction
@@ -138,7 +141,7 @@ streetview-dl --metadata "https://maps.url..."
 ## Output
 
 Downloads create equirectangular panorama images with:
-- Full resolution (typically 16384×8192 pixels)
+- Full resolution (typically 16384×8192 pixels with the "high" flag)
 - Proper XMP metadata for 360° photo viewers
 - Geographic and temporal metadata when available
 - Copyright and attribution information
@@ -151,35 +154,23 @@ Files are compatible with:
 
 ## API limits and costs
 
-Uses Google's official Map Tiles API:
-- Requires billing enabled (small cost per request)
+Uses Google's official [Map Tiles API](https://developers.google.com/maps/documentation/tile):
+- Requires billing enabled
+- No charge for less than 100k requests per month
+- **Quality impacts requests**: `high` = 512 tiles, `medium` = 128 tiles, `low` = 32 tiles
 - Subject to standard API quotas
-- Much cheaper than commercial alternatives
+- Virtually free and cheaper than [commercial alternatives](https://svd360.com/)
 - Respects Google's terms of service
 
 ## Requirements
 
 - Python 3.8+
 - Google Maps API key with Map Tiles API enabled
-- Internet connection
 
 ## License
 
-MIT License - see LICENSE file for details
-
-## Development status
-
-✅ **Fully functional** - All core features implemented and tested
-
-- [x] CLI interface with rich terminal output
-- [x] Multiple quality levels (high/medium/low)
-- [x] Image filters (BW, sepia, vintage) with adjustments
-- [x] Comprehensive metadata extraction
-- [x] Batch processing capabilities
-- [x] Multiple authentication methods
-- [x] 360° XMP metadata embedding
-- [x] Progress bars and error handling
+[MIT License](LICENSE.md)
 
 ## Contributing
 
-Issues and pull requests welcome at the [GitHub repository](https://github.com/yourusername/streetview-dl).
+Issues and pull requests welcome at the [GitHub repository](https://github.com/stiles/streetview-dl).

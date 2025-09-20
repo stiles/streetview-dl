@@ -2,14 +2,16 @@
 
 import io
 import math
+import warnings
 from typing import Optional, Tuple
 
 import requests
 from PIL import Image
-from rich.progress import Progress, TaskID
+from rich.console import Console
 
 from .auth import get_api_key
 from .metadata import StreetViewMetadata
+
 
 
 class StreetViewDownloader:
@@ -74,9 +76,8 @@ class StreetViewDownloader:
     def download_panorama(
         self, 
         metadata: StreetViewMetadata, 
-        quality: str = "high",
-        progress: Optional[Progress] = None,
-        task_id: Optional[TaskID] = None
+        quality: str = "medium",
+        console: Optional[Console] = None
     ) -> Image.Image:
         """Download and stitch panorama tiles."""
         # Map quality to zoom level
@@ -93,13 +94,24 @@ class StreetViewDownloader:
         tiles_x = math.ceil(scaled_width / metadata.tile_width)
         tiles_y = math.ceil(scaled_height / metadata.tile_height)
         
-        # Create canvas
+        # Create canvas (suppress PIL warning for large images)
         canvas_width = tiles_x * metadata.tile_width
         canvas_height = tiles_y * metadata.tile_height
-        canvas = Image.new("RGB", (canvas_width, canvas_height))
+        
+        # Temporarily disable PIL size warnings
+        old_max = Image.MAX_IMAGE_PIXELS
+        Image.MAX_IMAGE_PIXELS = None
+        
+        try:
+            canvas = Image.new("RGB", (canvas_width, canvas_height))
+        finally:
+            Image.MAX_IMAGE_PIXELS = old_max
         
         total_tiles = tiles_x * tiles_y
         completed_tiles = 0
+        
+        if console:
+            console.print(f"[dim]Downloading {total_tiles} tiles ({tiles_x}×{tiles_y})[/dim]")
         
         # Download and place tiles
         for y in range(tiles_y):
@@ -112,18 +124,27 @@ class StreetViewDownloader:
                     pass
                 
                 completed_tiles += 1
-                if progress and task_id:
-                    progress.update(task_id, completed=completed_tiles)
+        
+        if console:
+            console.print(f"[dim]Downloaded {completed_tiles} tiles successfully[/dim]")
         
         # Crop to exact panorama dimensions
-        return canvas.crop((0, 0, scaled_width, scaled_height))
+        # Temporarily disable PIL size warnings for cropping
+        old_max = Image.MAX_IMAGE_PIXELS
+        Image.MAX_IMAGE_PIXELS = None
+        
+        try:
+            result = canvas.crop((0, 0, scaled_width, scaled_height))
+        finally:
+            Image.MAX_IMAGE_PIXELS = old_max
+            
+        return result
     
     def download_from_url(
         self, 
         url: str, 
-        quality: str = "high",
-        progress: Optional[Progress] = None,
-        task_id: Optional[TaskID] = None
+        quality: str = "medium",
+        console: Optional[Console] = None
     ) -> Tuple[Image.Image, StreetViewMetadata]:
         """Download panorama from Google Maps URL."""
         from .metadata import extract_from_maps_url
@@ -136,5 +157,5 @@ class StreetViewDownloader:
         metadata.url_yaw = yaw
         metadata.url_pitch = pitch
         
-        image = self.download_panorama(metadata, quality, progress, task_id)
+        image = self.download_panorama(metadata, quality, console)
         return image, metadata

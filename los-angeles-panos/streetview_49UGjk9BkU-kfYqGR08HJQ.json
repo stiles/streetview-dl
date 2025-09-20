@@ -1,0 +1,27 @@
+{
+  "pano_id": "49UGjk9BkU-kfYqGR08HJQ",
+  "image_width": 16384,
+  "image_height": 8192,
+  "tile_width": 512,
+  "tile_height": 512,
+  "lat": 34.03839166455113,
+  "lng": -118.22702689427767,
+  "date": "2025-04",
+  "copyright_info": "From the Owner, Photo by: Google",
+  "url_yaw": 12.794490766461024,
+  "url_pitch": -11.965890943666054,
+  "links": [
+    {
+      "panoId": "x5rHckM-G23BClu2o5TjOg",
+      "heading": 278.7847595214844,
+      "text": "Whittier Blvd",
+      "elevationAboveEgm96": 92.24396
+    },
+    {
+      "panoId": "MRbOuD64c7oL1EL5eW3lCg",
+      "heading": 101.22172546386719,
+      "text": "Whittier Blvd",
+      "elevationAboveEgm96": 92.47063
+    }
+  ]
+}

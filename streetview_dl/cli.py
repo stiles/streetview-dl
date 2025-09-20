@@ -1,20 +1,33 @@
 """Command line interface for streetview-dl."""
 
 import json
+import math
 import sys
+import warnings
 from pathlib import Path
 from typing import Optional
 
 import click
+from PIL import Image
 from rich.console import Console
-from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TaskProgressColumn
+
+# Suppress PIL DecompressionBombWarning for large panorama images
+warnings.filterwarnings("ignore", category=Image.DecompressionBombWarning)
+# Also filter the specific warning message format with different patterns
+warnings.filterwarnings("ignore", message=".*Image size.*exceeds limit.*")
+warnings.filterwarnings("ignore", message=".*decompression bomb.*")
+warnings.filterwarnings("ignore", message=".*pixels.*exceeds limit.*")
+# Filter all PIL warnings for safety
+warnings.filterwarnings("ignore", module="PIL.*")
+# Increase PIL's decompression bomb protection limit for large panoramas
+Image.MAX_IMAGE_PIXELS = None
 
 from . import __version__
 from .auth import get_api_key, configure_api_key, validate_api_key
 from .core import StreetViewDownloader
 from .metadata import extract_from_maps_url, validate_maps_url
 from .processing import ImageProcessor
-from .utils import write_xmp_metadata
+from .utils import write_xmp_metadata, crop_fov
 
 
 console = Console()
@@ -26,12 +39,13 @@ console = Console()
 @click.option('--output', '-o', help='Output filename')
 @click.option('--output-dir', help='Output directory for batch processing')
 @click.option('--quality', type=click.Choice(['low', 'medium', 'high']), 
-              default='high', help='Image quality/resolution')
+              default='medium', help='Image quality/resolution')
 @click.option('--format', 'output_format', type=click.Choice(['jpg', 'png', 'webp']), 
               default='jpg', help='Output image format')
 @click.option('--jpeg-quality', type=click.IntRange(1, 100), default=92, 
               help='JPEG compression quality')
 @click.option('--max-width', type=int, help='Maximum width (resizes if larger)')
+@click.option('--fov', type=click.IntRange(60, 360), help='Field of view in degrees (crops panorama around viewing direction)')
 @click.option('--filter', 'image_filter', 
               type=click.Choice(['none', 'bw', 'sepia', 'vintage']), 
               default='none', help='Apply image filter')
@@ -55,6 +69,7 @@ def main(
     output_format: str,
     jpeg_quality: int,
     max_width: Optional[int],
+    fov: Optional[int],
     image_filter: str,
     brightness: float,
     contrast: float,
@@ -88,6 +103,7 @@ def main(
             output_format=output_format,
             jpeg_quality=jpeg_quality,
             max_width=max_width,
+            fov=fov,
             image_filter=image_filter,
             brightness=brightness,
             contrast=contrast,
@@ -115,6 +131,7 @@ def main(
             output_format=output_format,
             jpeg_quality=jpeg_quality,
             max_width=max_width,
+            fov=fov,
             image_filter=image_filter,
             brightness=brightness,
             contrast=contrast,
@@ -144,6 +161,7 @@ def process_single_url(
     output_format: str,
     jpeg_quality: int,
     max_width: Optional[int],
+    fov: Optional[int],
     image_filter: str,
     brightness: float,
     contrast: float,
@@ -196,9 +214,10 @@ def process_single_url(
     
     # Generate output filename if not provided
     if not output:
-        quality_suffix = f"_{quality}" if quality != "high" else ""
+        quality_suffix = f"_{quality}" if quality != "medium" else ""
+        fov_suffix = f"_{fov}deg" if fov and fov < 360 else ""
         filter_suffix = f"_{image_filter}" if image_filter != "none" else ""
-        output = f"streetview_{pano_id}{quality_suffix}{filter_suffix}.{output_format}"
+        output = f"streetview_{pano_id}{quality_suffix}{fov_suffix}{filter_suffix}.{output_format}"
     
     # Save metadata if requested
     if metadata or metadata_only:
@@ -210,36 +229,34 @@ def process_single_url(
     if metadata_only:
         return
     
-    # Download panorama with progress bar
-    with Progress(
-        SpinnerColumn(),
-        TextColumn("[progress.description]{task.description}"),
-        BarColumn(),
-        TaskProgressColumn(),
+    # Calculate total tiles for progress (match core module calculation)
+    zoom_map = {"low": 3, "medium": 4, "high": 5}
+    z = zoom_map.get(quality, 5)
+    scale_factor = 2 ** (5 - z)
+    scaled_width = street_view_metadata.image_width // scale_factor
+    scaled_height = street_view_metadata.image_height // scale_factor
+    tiles_x = math.ceil(scaled_width / street_view_metadata.tile_width)
+    tiles_y = math.ceil(scaled_height / street_view_metadata.tile_height)
+    total_tiles = tiles_x * tiles_y
+    
+    # Download panorama with status updates
+    console.print("[blue]Fetching panorama tiles...[/blue]")
+    image = downloader.download_panorama(
+        street_view_metadata, 
+        quality=quality,
         console=console
-    ) as progress:
-        
-        # Calculate total tiles for progress
-        zoom_map = {"low": 3, "medium": 4, "high": 5}
-        z = zoom_map.get(quality, 5)
-        scale_factor = 2 ** (5 - z)
-        scaled_width = street_view_metadata.image_width // scale_factor
-        scaled_height = street_view_metadata.image_height // scale_factor
-        tiles_x = (scaled_width + street_view_metadata.tile_width - 1) // street_view_metadata.tile_width
-        tiles_y = (scaled_height + street_view_metadata.tile_height - 1) // street_view_metadata.tile_height
-        total_tiles = tiles_x * tiles_y
-        
-        task = progress.add_task("Downloading tiles...", total=total_tiles)
-        
-        image = downloader.download_panorama(
-            street_view_metadata, 
-            quality=quality,
-            progress=progress,
-            task_id=task
-        )
+    )
     
     # Process image
+    console.print("[blue]Processing image...[/blue]")
     processor = ImageProcessor()
+    
+    # Apply field-of-view cropping if specified
+    if fov and fov < 360 and street_view_metadata.url_yaw is not None:
+        console.print(f"[blue]Cropping to {fov}° field of view...[/blue]")
+        image = crop_fov(image, street_view_metadata.url_yaw, fov)
+        if verbose:
+            console.print(f"[dim]Cropped to {fov}° around yaw {street_view_metadata.url_yaw:.1f}°[/dim]")
     
     if max_width and image.width > max_width:
         scale = max_width / image.width
@@ -249,11 +266,12 @@ def process_single_url(
             console.print(f"[dim]Resized to: {max_width}×{new_height}[/dim]")
     
     if image_filter != "none" or brightness != 1.0 or contrast != 1.0 or saturation != 1.0:
-        with console.status("[bold blue]Processing image..."):
-            image = processor.apply_filter(image, image_filter)
-            image = processor.adjust_image(image, brightness, contrast, saturation)
+        console.print("[blue]Applying filters and adjustments...[/blue]")
+        image = processor.apply_filter(image, image_filter)
+        image = processor.adjust_image(image, brightness, contrast, saturation)
     
     # Save image
+    console.print("[blue]Saving panorama...[/blue]")
     save_kwargs = {}
     format_for_save = output_format.upper()
     if format_for_save == 'JPG':
@@ -261,10 +279,14 @@ def process_single_url(
         save_kwargs['quality'] = jpeg_quality
         save_kwargs['optimize'] = True
     
-    image.save(output, format=format_for_save, **save_kwargs)
+    # Save with warning suppression for large images
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore", category=Image.DecompressionBombWarning)
+        image.save(output, format=format_for_save, **save_kwargs)
     
     # Add XMP metadata for 360° photos
     if not no_xmp and output_format.lower() == 'jpg':
+        console.print("[blue]Adding 360° metadata...[/blue]")
         write_xmp_metadata(output, image)
     
     # Display results
@@ -286,6 +308,7 @@ def process_batch(
     output_format: str,
     jpeg_quality: int,
     max_width: Optional[int],
+    fov: Optional[int],
     image_filter: str,
     brightness: float,
     contrast: float,
@@ -327,9 +350,10 @@ def process_batch(
             # Generate output filename
             pano_id, _, _ = extract_from_maps_url(url)
             if pano_id:
-                quality_suffix = f"_{quality}" if quality != "high" else ""
+                quality_suffix = f"_{quality}" if quality != "medium" else ""
+                fov_suffix = f"_{fov}deg" if fov and fov < 360 else ""
                 filter_suffix = f"_{image_filter}" if image_filter != "none" else ""
-                filename = f"streetview_{pano_id}{quality_suffix}{filter_suffix}.{output_format}"
+                filename = f"streetview_{pano_id}{quality_suffix}{fov_suffix}{filter_suffix}.{output_format}"
                 output = str(output_path / filename)
             else:
                 output = str(output_path / f"streetview_{i:03d}.{output_format}")
@@ -342,6 +366,7 @@ def process_batch(
                 output_format=output_format,
                 jpeg_quality=jpeg_quality,
                 max_width=max_width,
+                fov=fov,
                 image_filter=image_filter,
                 brightness=brightness,
                 contrast=contrast,

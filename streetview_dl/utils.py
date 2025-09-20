@@ -1,5 +1,6 @@
 """Utility functions for streetview-dl."""
 
+import math
 from pathlib import Path
 from PIL import Image
 
@@ -131,3 +132,60 @@ def safe_filename(text: str, max_length: int = 255) -> str:
     text = text.strip(' .')
     
     return text or "streetview"
+
+
+def crop_fov(image: Image.Image, center_yaw: float, fov_degrees: int) -> Image.Image:
+    """
+    Crop an equirectangular panorama to show only a specific field of view.
+    
+    Args:
+        image: Full equirectangular panorama image
+        center_yaw: Yaw angle in degrees (0-360) for the center of the view
+        fov_degrees: Field of view in degrees (60-360)
+        
+    Returns:
+        Cropped image showing the specified field of view
+    """
+    width, height = image.size
+    
+    # Normalize yaw to 0-360 range
+    center_yaw = center_yaw % 360
+    
+    # Calculate the horizontal crop boundaries
+    # In equirectangular, yaw 0° is at the center (width/2)
+    # Convert yaw to pixel position: yaw 0° = center, yaw 180° = edges
+    center_x = (center_yaw / 360.0) * width
+    
+    # Calculate half the field of view in pixels
+    half_fov_pixels = (fov_degrees / 360.0) * width / 2
+    
+    # Calculate crop boundaries
+    left = int(center_x - half_fov_pixels)
+    right = int(center_x + half_fov_pixels)
+    
+    # Handle wraparound for panoramas
+    if fov_degrees >= 360:
+        # No cropping needed for full 360°
+        return image
+    elif left < 0 or right > width:
+        # Need to handle wraparound
+        if left < 0:
+            # Crop from right side + left side
+            left_part = image.crop((width + left, 0, width, height))
+            right_part = image.crop((0, right, width, height))
+            # Concatenate the parts
+            cropped = Image.new('RGB', (int(half_fov_pixels * 2), height))
+            cropped.paste(left_part, (0, 0))
+            cropped.paste(right_part, (left_part.width, 0))
+            return cropped
+        else:
+            # right > width, crop from left side + right side  
+            left_part = image.crop((left, 0, width, height))
+            right_part = image.crop((0, 0, right - width, height))
+            cropped = Image.new('RGB', (int(half_fov_pixels * 2), height))
+            cropped.paste(left_part, (0, 0))
+            cropped.paste(right_part, (left_part.width, 0))
+            return cropped
+    else:
+        # Simple crop, no wraparound needed
+        return image.crop((left, 0, right, height))
