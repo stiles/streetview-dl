@@ -6,6 +6,10 @@ Download high-resolution Google Street View panoramas from the command line.
 
 Converts Google Maps Street View URLs into full-resolution equirectangular panorama images. Downloads the raw tiles from Google's official Map Tiles API and stitches them together, preserving maximum quality and adding proper 360° metadata.
 
+For example, the Sixth Street Viaduct in Los Angeles: 
+
+![6th Street Bridge](los-angeles-panos/streetview_49UGjk9BkU-kfYqGR08HJQ.jpg)
+
 ## Installation
 
 ```bash
