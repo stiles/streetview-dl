@@ -9,7 +9,7 @@ description = "Download high-resolution Google Street View panoramas from the co
 readme = "README.md"
 license = {text = "MIT"}
 authors = [
-    {name = "Your Name", email = "your.email@example.com"}
+    {name = "Your Name", email = "mattstiles@gmail.com"}
 ]
 classifiers = [
     "Development Status :: 4 - Beta",
@@ -30,7 +30,7 @@ classifiers = [
     "Topic :: System :: Archiving",
     "Topic :: Utilities",
 ]
-keywords = ["streetview", "panorama", "google-maps", "cli", "download", "360"]
+keywords = ["streetview", "panorama", "google-maps", "cli", "imagery", "python"]
 requires-python = ">=3.8"
 dependencies = [
     "click>=8.0.0",
