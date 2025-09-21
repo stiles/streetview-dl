@@ -5,22 +5,6 @@ All notable changes to streetview-dl will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
-
-### Planned for next release
-- Comprehensive test suite
-- CI/CD pipeline setup
-  - GitHub Actions: lint, mypy, tests with coverage, build
-- Performance optimizations
-- Additional image filters
-- Terminal output improvements (higher contrast accents, clearer status messages)
-  - Added end-of-run summary and grouped spinners
-  - New `--accent-color` option
-  - New resiliency flags: `--retries`, `--backoff`
-  - Parallel tile downloads with `--concurrency` (bounded to respect API limits)
-  - Auto-tuned concurrency when `--concurrency 0` (based on CPU and quality)
-  - New framing controls: `--clip left|right` and `--crop-bottom <fraction>`
-
 ## [0.2.0] - 2025-09-21
 
 ### Added
