@@ -9,7 +9,7 @@ Converts Google Maps Street View URLs into full-resolution equirectangular panor
 
 For example, the [Sixth Street Viaduct](https://www.google.com/maps/place/6th+Street+Viaduct/@34.0385329,-118.2281272,3a,75y,358.11h,95.94t/data=!3m8!1e1!3m6!1sCIHM0ogKEICAgIDOtd7zMw!2e10!3e11!6shttps:%2F%2Flh3.googleusercontent.com%2Fgpms-cs-s%2FAB8u6HZ8quaeJMwSfDyz0Wh_3wg2WqgE6odKd6HZiYKuXLvAxJXzdlvnm2q0vOa1Mq6eYZAkT9Js3QlXM2xFawiOFqDX8uWiCFIby7qafoMtBeQcu0CmibR59Dr7IvDNPBdAzBwBXHDx%3Dw900-h600-k-no-pi-5.943789381254604-ya358.112140877387-ro0-fo100!7i12000!8i6000!4m14!1m7!3m6!1s0x80c2c61861a9652d:0x5a206a650885fc61!2s6th+Street+Viaduct!8m2!3d34.0385329!4d-118.2281272!16s%2Fm%2F026m0x8!3m5!1s0x80c2c61861a9652d:0x5a206a650885fc61!8m2!3d34.0385329!4d-118.2281272!16s%2Fm%2F026m0x8?entry=ttu&g_ep=EgoyMDI1MDkxNy4wIKXMDSoASAFQAw%3D%3D) in Los Angeles: 
 
-![6th Street Bridge](los-angeles-panos/streetview_49UGjk9BkU-kfYqGR08HJQ.jpg)
+<img src="los-angeles-panos/streetview_49UGjk9BkU-kfYqGR08HJQ.jpg" alt="6th Street Bridge" width="900" />
 
 ## Installation
 
@@ -166,11 +166,15 @@ streetview-dl --fov 180 --clip right --crop-bottom 0.75 "https://maps.url..."
 
 100°, 180°, 220°, 280°, and the full panorama captured from the same spot in Venice:
 
-![100°](example_panoramas/streetview_jGaYvr31o-KsarHZtXbc5w_high_100deg.jpg)
-![180°](example_panoramas/streetview_jGaYvr31o-KsarHZtXbc5w_high_180deg.jpg)
-![220°](example_panoramas/streetview_jGaYvr31o-KsarHZtXbc5w_high_220deg.jpg)
-![280°](example_panoramas/streetview_jGaYvr31o-KsarHZtXbc5w_high_280deg.jpg)
-![Full panorama](example_panoramas/streetview_jGaYvr31o-KsarHZtXbc5w_high.jpg)
+<p>
+  <img src="example_panoramas/streetview_jGaYvr31o-KsarHZtXbc5w_high_100deg.jpg" alt="100°" width="300" />
+  <img src="example_panoramas/streetview_jGaYvr31o-KsarHZtXbc5w_high_180deg.jpg" alt="180°" width="300" />
+  <img src="example_panoramas/streetview_jGaYvr31o-KsarHZtXbc5w_high_220deg.jpg" alt="220°" width="300" />
+  <img src="example_panoramas/streetview_jGaYvr31o-KsarHZtXbc5w_high_280deg.jpg" alt="280°" width="300" />
+</p>
+<p>
+  <img src="example_panoramas/streetview_jGaYvr31o-KsarHZtXbc5w_high.jpg" alt="Full panorama" width="700" />
+</p>
 
 Command pattern used:
 
