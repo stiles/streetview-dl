@@ -1,10 +1,15 @@
 import pytest
 
-from streetview_dl.metadata import extract_from_maps_url, validate_maps_url, StreetViewMetadata
+from streetview_dl.metadata import (
+    extract_from_maps_url,
+    validate_maps_url,
+    StreetViewMetadata,
+)
 
 
 def test_validate_maps_url_true():
-    url = "https://www.google.com/maps/@?api=1&map_action=pano&parameters"  # contains markers
+    # contains Street View markers
+    url = "https://www.google.com/maps/@?api=1&map_action=pano&parameters"
     assert validate_maps_url(url) is True
 
 
@@ -15,7 +20,10 @@ def test_validate_maps_url_false():
 def test_extract_from_maps_url_thumbnail_query():
     # Minimal synthetic URL including an encoded thumbnail query with panoid, yaw, pitch
     qs = "panoid%3DTESTPANO%26yaw%3D123.45%26pitch%3D-1.5"
-    url = f"https://www.google.com/maps/place/data=!3m8!1e1!3m6!1shttps:%2F%2Fstreetviewpixels-pa.googleapis.com%3F{qs}!7i16384!8i8192"
+    url = (
+        "https://www.google.com/maps/place/data="
+        f"!3m8!1e1!3m6!1shttps:%2F%2Fstreetviewpixels-pa.googleapis.com%3F{qs}!7i16384!8i8192"
+    )
     pano_id, yaw, pitch = extract_from_maps_url(url)
     assert pano_id == "TESTPANO"
     assert pytest.approx(yaw, rel=1e-6) == 123.45

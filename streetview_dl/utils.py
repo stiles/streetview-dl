@@ -1,6 +1,5 @@
 """Utility functions for streetview-dl."""
 
-import math
 from pathlib import Path
 from PIL import Image
 
@@ -10,7 +9,7 @@ def write_xmp_metadata(image_path: str, image: Image.Image) -> None:
     Embed XMP metadata to mark image as 360° panorama.
     
     This adds PhotoSphere metadata so the image is recognized as a 360° panorama
-    by viewers like Facebook, Google Photos, VR applications, etc.
+    by viewers that support spherical images.
     """
     # Create minimal XMP metadata for 360° panorama
     xmp_data = (

@@ -1,4 +1,3 @@
-import json
 from click.testing import CliRunner
 
 from streetview_dl.cli import main

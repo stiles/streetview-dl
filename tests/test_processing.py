@@ -1,5 +1,4 @@
 from PIL import Image
-
 from streetview_dl.processing import ImageProcessor
 
 
