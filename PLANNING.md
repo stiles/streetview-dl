@@ -124,19 +124,18 @@ streetview-dl/
 - [x] Batch processing
 - [x] Multiple output formats
 
-### Phase 3: Polish & Distribution 🚧 IN PROGRESS
+### Phase 3: Polish & Distribution ✅ COMPLETE (v0.2.0)
 - [x] Documentation (README, CHANGELOG)
 - [x] PyPI setup (publish script ready)
-- [ ] Comprehensive tests
-- [ ] CI/CD pipeline
+- [x] Comprehensive tests
+- [x] CI/CD pipeline
 - [ ] Official PyPI publication
 
-### Phase 4: Future Features (v0.2.0+)
-- [ ] **Field of View Cropping** - Crop panoramas to show only front-facing view
-  - `--fov DEGREES` option (e.g., 180°, 120°) to show just what you're looking at
-  - Needs refinement in equirectangular coordinate mapping
-  - Would eliminate distracting background areas and reduce file sizes
-  - Useful for focused street views without full 360° context
+### Phase 4: Future Features
+- [ ] Progress percent + ETA during tile download
+- [ ] Optional Codecov coverage badge
+- [ ] More filters (HDR-like tone mapping, dehaze)
+- [ ] Simple GUI wrapper
 
 ## Success Metrics ✅ ACHIEVED
 - ✅ Easy installation: `pip install -e .` (PyPI coming soon)

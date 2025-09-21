@@ -1,0 +1,27 @@
+{
+  "pano_id": "OltaH0q7Feo9u680yLRp7A",
+  "image_width": 13312,
+  "image_height": 6656,
+  "tile_width": 512,
+  "tile_height": 512,
+  "lat": 34.161600054732666,
+  "lng": -118.16692028982172,
+  "date": "2015-12",
+  "copyright_info": "From the Owner, Photo by: Google",
+  "url_yaw": 203.02530477882345,
+  "url_pitch": -6.3582003582139635,
+  "links": [
+    {
+      "panoId": "E1b-AfDJcC6MaIvAWx3aXA",
+      "heading": 346.55255126953125,
+      "text": "",
+      "elevationAboveEgm96": 255.14087
+    },
+    {
+      "panoId": "Q-5GOQN5_5Bslg1LuFyE0w",
+      "heading": 160.521484375,
+      "text": "",
+      "elevationAboveEgm96": 255.14157
+    }
+  ]
+}

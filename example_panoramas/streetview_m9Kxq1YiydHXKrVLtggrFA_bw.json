@@ -1,0 +1,27 @@
+{
+  "pano_id": "m9Kxq1YiydHXKrVLtggrFA",
+  "image_width": 16384,
+  "image_height": 8192,
+  "tile_width": 512,
+  "tile_height": 512,
+  "lat": 34.06165399709676,
+  "lng": -118.30915243358066,
+  "date": "2025-08",
+  "copyright_info": "From the Owner, Photo by: Google",
+  "url_yaw": 317.24921039864864,
+  "url_pitch": 5.030953249968292,
+  "links": [
+    {
+      "panoId": "-e9UP99rB77pZu_YlqLiWg",
+      "heading": 269.7062683105469,
+      "text": "Wilshire Blvd",
+      "elevationAboveEgm96": 62.438362
+    },
+    {
+      "panoId": "D7nt59vE3KsTfeSRyLbHgw",
+      "heading": 91.27194213867188,
+      "text": "Wilshire Blvd",
+      "elevationAboveEgm96": 62.51572
+    }
+  ]
+}

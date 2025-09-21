@@ -107,5 +107,12 @@ def validate_maps_url(url: str) -> bool:
         return False
     
     # Must contain Street View indicators
-    street_view_indicators = ["3a,", "streetview", "!1e1", "data=!3m"]
+    street_view_indicators = [
+        "3a,",           # classic Street View path token
+        "streetview",    # explicit keyword
+        "!1e1",          # SV layer marker in data blob
+        "data=!3m",      # generic data blob marker
+        "map_action=pano",  # API=1 pano deep link
+        "panoid=",       # direct pano id parameter
+    ]
     return any(indicator in url for indicator in street_view_indicators)

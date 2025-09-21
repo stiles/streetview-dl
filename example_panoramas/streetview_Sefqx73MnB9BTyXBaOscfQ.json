@@ -1,0 +1,27 @@
+{
+  "pano_id": "Sefqx73MnB9BTyXBaOscfQ",
+  "image_width": 16384,
+  "image_height": 8192,
+  "tile_width": 512,
+  "tile_height": 512,
+  "lat": 33.98775270188745,
+  "lng": -118.4722132117881,
+  "date": "2024-05",
+  "copyright_info": "From the Owner, Photo by: Google",
+  "url_yaw": 222.57368715637634,
+  "url_pitch": -7.50787449204681,
+  "links": [
+    {
+      "panoId": "hAKdxzgmZePIBs5yVAMejw",
+      "heading": 224.18031311035156,
+      "text": "Windward Ave",
+      "elevationAboveEgm96": 7.333492
+    },
+    {
+      "panoId": "IK3nd1ra5nhLocCOjyN91w",
+      "heading": 55.072120666503906,
+      "text": "Windward Ave",
+      "elevationAboveEgm96": 7.113113
+    }
+  ]
+}

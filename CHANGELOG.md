@@ -10,9 +10,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Planned for next release
 - Comprehensive test suite
 - CI/CD pipeline setup
-- PyPI package publication
+  - GitHub Actions: lint, mypy, tests with coverage, build
 - Performance optimizations
 - Additional image filters
+- Terminal output improvements (higher contrast accents, clearer status messages)
+  - Added end-of-run summary and grouped spinners
+  - New `--accent-color` option
+  - New resiliency flags: `--retries`, `--backoff`
+  - Parallel tile downloads with `--concurrency` (bounded to respect API limits)
+  - Auto-tuned concurrency when `--concurrency 0` (based on CPU and quality)
+  - New framing controls: `--clip left|right` and `--crop-bottom <fraction>`
+
+## [0.2.0] - 2025-09-21
+
+### Added
+- Auto-tuned concurrency for tile downloads (`--concurrency 0`) and manual override
+- Parallel tile downloads with bounded workers
+- Configurable HTTP resiliency: `--retries`, `--backoff` (also via env vars)
+- Accent color option for terminal output (`--accent-color`)
+- Grouped status spinners and end-of-run summary block
+- Framing controls: `--fov`, `--clip left|right`, and `--crop-bottom <fraction>`
+- True sepia filter using color matrix; vintage built on top
+- Initial pytest suite (URL parsing, processing, CLI)
+- GitHub Actions CI (lint, mypy, tests, build) with artifacts
+- README examples, including Venice framing comparison
+
+### Changed
+- More informative URL validation (supports `map_action=pano` and `panoid=`)
+- Rich output readability improvements
+
+### Fixed
+- Minor robustness in metadata parsing and downloader session handling
 
 ## [0.1.0] - 2025-09-20 (Initial Release)
 
@@ -33,7 +61,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Professional package structure with pyproject.toml
 - PyPI publishing workflow
 
-## [0.0.1] - 2025-09-20 (Development)
+## [0.0.1] - 2025-09-20 (dev)
 
 ### Added
 - Core proof-of-concept script (`fetch_pano.py`)

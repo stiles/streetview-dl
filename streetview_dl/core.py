@@ -1,11 +1,14 @@
 """Core Street View downloading functionality."""
 
 import io
+import concurrent.futures as futures
 import math
 import warnings
 from typing import Optional, Tuple
 
 import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 from PIL import Image
 from rich.console import Console
 
@@ -17,18 +20,38 @@ from .metadata import StreetViewMetadata
 class StreetViewDownloader:
     """Main class for downloading Street View panoramas."""
     
-    def __init__(self, api_key: Optional[str] = None, timeout: int = 30):
+    def __init__(self, api_key: Optional[str] = None, timeout: int = 30, retries: int = 3, backoff: float = 0.5):
         """Initialize downloader with API key and timeout."""
         self.api_key = api_key or get_api_key()
         self.timeout = timeout
         self._session_cache: Optional[str] = None
+        self._http = self._build_session(retries=retries, backoff=backoff)
+
+    @staticmethod
+    def _build_session(retries: int, backoff: float) -> requests.Session:
+        """Create a requests session with retry/backoff for transient errors."""
+        session = requests.Session()
+        retry = Retry(
+            total=retries,
+            read=retries,
+            connect=retries,
+            status=retries,
+            backoff_factor=backoff,
+            status_forcelist=[429, 500, 502, 503, 504],
+            allowed_methods=["GET", "POST"],
+            raise_on_status=False,
+        )
+        adapter = HTTPAdapter(max_retries=retry)
+        session.mount("http://", adapter)
+        session.mount("https://", adapter)
+        return session
     
     def create_session(self) -> str:
         """Create a session for the Map Tiles API."""
         if self._session_cache:
             return self._session_cache
             
-        response = requests.post(
+        response = self._http.post(
             "https://tile.googleapis.com/v1/createSession",
             params={"key": self.api_key},
             json={"mapType": "streetview", "language": "en-US", "region": "US"},
@@ -56,7 +79,7 @@ class StreetViewDownloader:
                 raise ValueError("Must provide either pano_id or both lat and lng")
             params.update({"lat": lat, "lng": lng, "radius": radius})
         
-        response = requests.get(
+        response = self._http.get(
             "https://tile.googleapis.com/v1/streetview/metadata", 
             params=params, 
             timeout=self.timeout
@@ -69,7 +92,7 @@ class StreetViewDownloader:
         params = {"session": session, "key": self.api_key, "panoId": pano_id}
         url = f"https://tile.googleapis.com/v1/streetview/tiles/{z}/{x}/{y}"
         
-        response = requests.get(url, params=params, timeout=self.timeout)
+        response = self._http.get(url, params=params, timeout=self.timeout)
         response.raise_for_status()
         return Image.open(io.BytesIO(response.content)).convert("RGB")
     
@@ -77,7 +100,8 @@ class StreetViewDownloader:
         self, 
         metadata: StreetViewMetadata, 
         quality: str = "medium",
-        console: Optional[Console] = None
+        console: Optional[Console] = None,
+        concurrency: int = 8,
     ) -> Image.Image:
         """Download and stitch panorama tiles."""
         # Map quality to zoom level
@@ -109,20 +133,29 @@ class StreetViewDownloader:
         
         total_tiles = tiles_x * tiles_y
         completed_tiles = 0
-        
+
         if console:
             console.print(f"[dim]Downloading {total_tiles} tiles ({tiles_x}×{tiles_y})[/dim]")
-        
-        # Download and place tiles
-        for y in range(tiles_y):
-            for x in range(tiles_x):
-                try:
-                    tile = self.fetch_tile(session, metadata.pano_id, z, x, y)
+
+        # Prepare coordinates
+        coords = [(x, y) for y in range(tiles_y) for x in range(tiles_x)]
+
+        # Define worker that only fetches and returns
+        def fetch_coord(coord: tuple[int, int]):
+            x, y = coord
+            try:
+                tile = self.fetch_tile(session, metadata.pano_id, z, x, y)
+                return x, y, tile
+            except requests.exceptions.RequestException:
+                return x, y, None
+
+        # Download tiles in parallel; paste on main thread to avoid PIL concurrency issues
+        with futures.ThreadPoolExecutor(max_workers=max(1, concurrency)) as executor:
+            future_map = {executor.submit(fetch_coord, c): c for c in coords}
+            for fut in futures.as_completed(future_map):
+                x, y, tile = fut.result()
+                if tile is not None:
                     canvas.paste(tile, (x * metadata.tile_width, y * metadata.tile_height))
-                except requests.exceptions.RequestException:
-                    # Skip missing tiles (some panoramas have gaps)
-                    pass
-                
                 completed_tiles += 1
         
         if console:

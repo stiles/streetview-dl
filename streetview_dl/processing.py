@@ -45,12 +45,27 @@ class ImageProcessor:
     
     @staticmethod
     def _apply_sepia(image: Image.Image) -> Image.Image:
-        """Apply sepia tone effect."""
-        # Convert to grayscale first
-        grayscale = ImageOps.grayscale(image)
-        
-        # Create sepia effect by colorizing
-        sepia = ImageOps.colorize(grayscale, "#704214", "#C0A080")
+        """Apply a sepia tone using a color matrix that preserves tonal range.
+
+        Uses the classic sepia transform:
+            R' = 0.393R + 0.769G + 0.189B
+            G' = 0.349R + 0.686G + 0.168B
+            B' = 0.272R + 0.534G + 0.131B
+
+        This keeps highlights and midtones intact and warms colors without
+        compressing the histogram into two endpoints.
+        """
+        if image.mode != "RGB":
+            image = image.convert("RGB")
+
+        # 3x4 matrix (flattened) for RGB output channels
+        matrix = [
+            0.393, 0.769, 0.189, 0.0,  # R'
+            0.349, 0.686, 0.168, 0.0,  # G'
+            0.272, 0.534, 0.131, 0.0,  # B'
+        ]
+
+        sepia = image.convert("RGB", matrix)
         return sepia
     
     @staticmethod

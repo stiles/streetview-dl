@@ -189,3 +189,21 @@ def crop_fov(image: Image.Image, center_yaw: float, fov_degrees: int) -> Image.I
     else:
         # Simple crop, no wraparound needed
         return image.crop((left, 0, right, height))
+
+
+def crop_bottom_fraction(image: Image.Image, keep_fraction: float) -> Image.Image:
+    """Crop bottom of image, keeping the top fraction of the height.
+
+    Args:
+        image: Source image
+        keep_fraction: Fraction of height to keep from the top (0.0-1.0)
+
+    Returns:
+        Cropped image
+    """
+    keep_fraction = max(0.0, min(1.0, float(keep_fraction)))
+    if keep_fraction >= 1.0:
+        return image
+    width, height = image.size
+    new_height = max(1, int(height * keep_fraction))
+    return image.crop((0, 0, width, new_height))
