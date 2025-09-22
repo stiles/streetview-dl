@@ -1,7 +1,6 @@
 """Command line interface for streetview-dl."""
 
 import json
-import math
 import time
 import sys
 import os
@@ -371,14 +370,7 @@ def process_single_url(
     if metadata_only:
         return
 
-    # Calculate total tiles for progress (match core module calculation)
-    zoom_map = {"low": 3, "medium": 4, "high": 5}
-    z = zoom_map.get(quality, 5)
-    scale_factor = 2 ** (5 - z)
-    scaled_width = street_view_metadata.image_width // scale_factor
-    scaled_height = street_view_metadata.image_height // scale_factor
-    # Calculate tile dimensions (match core module calculation)
-    # Note: these were calculated but not used in this function
+    # Note: Core downloader handles tile calculations internally
 
     # Download panorama with status updates
     with console.status(f"[bold {accent}]Fetching panorama tiles..."):
