@@ -7,6 +7,7 @@ from typing import Optional
 
 import click
 
+
 def get_config_path() -> Path:
     """Get the path to the configuration file."""
     config_dir = Path.home() / ".streetview-dl"

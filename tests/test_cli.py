@@ -21,4 +21,3 @@ def test_cli_accent_option_present():
     runner = CliRunner()
     result = runner.invoke(main, ["--help"])
     assert "--accent-color" in result.output
-
