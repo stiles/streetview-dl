@@ -218,6 +218,7 @@ Uses Google's official [Map Tiles API](https://developers.google.com/maps/docume
 - Requires billing enabled
 - No charge for less than 100k requests per month
 - **Quality impacts number of requests**: `high` = 512 tiles, `medium` = 128 tiles, `low` = 32 tiles
+  - Defaults to `medium`
 - Virtually free and cheaper than [commercial alternatives](https://svd360.com/)
 - Respects Google's terms of service
 
@@ -232,4 +233,4 @@ Uses Google's official [Map Tiles API](https://developers.google.com/maps/docume
 
 ## Contributing
 
-Issues and pull requests welcome at the [GitHub repository](https://github.com/stiles/streetview-dl).
+Issues and pull requests welcome!
