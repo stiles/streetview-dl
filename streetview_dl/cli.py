@@ -427,7 +427,7 @@ def process_single_url(
                 image = image.crop((left, 0, right, height))
             if verbose:
                 console.print(
-                    f"[dim]Clipped to {'forward' if clip=='right' else 'rear'} 180° half[/dim]"
+                    f"[dim]Clipped to {'forward' if clip == 'right' else 'rear'} 180° half[/dim]"
                 )
 
         if max_width and image.width > max_width:
