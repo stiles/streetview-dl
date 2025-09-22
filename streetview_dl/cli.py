@@ -13,6 +13,13 @@ import click
 from PIL import Image
 from rich.console import Console
 
+from . import __version__
+from .auth import get_api_key, configure_api_key, validate_api_key
+from .core import StreetViewDownloader
+from .metadata import extract_from_maps_url, validate_maps_url
+from .processing import ImageProcessor
+from .utils import write_xmp_metadata, crop_fov, crop_bottom_fraction
+
 # Suppress PIL DecompressionBombWarning for large panorama images
 warnings.filterwarnings("ignore", category=Image.DecompressionBombWarning)
 # Also filter the specific warning message format with different patterns
@@ -23,13 +30,6 @@ warnings.filterwarnings("ignore", message=".*pixels.*exceeds limit.*")
 warnings.filterwarnings("ignore", module="PIL.*")
 # Increase PIL's decompression bomb protection limit for large panoramas
 Image.MAX_IMAGE_PIXELS = None
-
-from . import __version__
-from .auth import get_api_key, configure_api_key, validate_api_key
-from .core import StreetViewDownloader
-from .metadata import extract_from_maps_url, validate_maps_url
-from .processing import ImageProcessor
-from .utils import write_xmp_metadata, crop_fov, crop_bottom_fraction
 
 
 console = Console()
@@ -71,43 +71,106 @@ def determine_concurrency(quality: str, requested: int) -> int:
 
 
 @click.command()
-@click.argument('url', required=False)
-@click.option('--api-key', help='Google Maps API key')
-@click.option('--output', '-o', help='Output filename')
-@click.option('--output-dir', help='Output directory for batch processing')
-@click.option('--quality', type=click.Choice(['low', 'medium', 'high']), 
-              default='medium', help='Image quality/resolution')
-@click.option('--format', 'output_format', type=click.Choice(['jpg', 'png', 'webp']), 
-              default='jpg', help='Output image format')
-@click.option('--jpeg-quality', type=click.IntRange(1, 100), default=92, 
-              help='JPEG compression quality')
-@click.option('--max-width', type=int, help='Maximum width (resizes if larger)')
-@click.option('--fov', type=click.IntRange(60, 360), help='Field of view in degrees (crops panorama around viewing direction)')
-@click.option('--filter', 'image_filter', 
-              type=click.Choice(['none', 'bw', 'sepia', 'vintage']), 
-              default='none', help='Apply image filter')
-@click.option('--brightness', type=float, default=1.0, help='Brightness adjustment')
-@click.option('--contrast', type=float, default=1.0, help='Contrast adjustment')
-@click.option('--saturation', type=float, default=1.0, help='Saturation adjustment')
-@click.option('--clip', type=click.Choice(['none', 'left', 'right']), default='none',
-              help='Clip to half panorama relative to view direction')
-@click.option('--crop-bottom', type=float, default=1.0,
-              help='Keep top fraction of height (0.0-1.0), e.g. 0.75')
-@click.option('--metadata', is_flag=True, help='Save metadata as JSON file')
-@click.option('--metadata-only', is_flag=True, help='Extract metadata only, no download')
-@click.option('--batch', help='File containing URLs (one per line)')
-@click.option('--no-xmp', is_flag=True, help='Skip embedding 360° XMP metadata')
-@click.option('--timeout', type=int, default=30, help='Request timeout in seconds')
-@click.option('--retries', type=click.IntRange(0, 10), default=3, envvar='STREETVIEW_DL_RETRIES',
-              show_envvar=True, help='HTTP retry attempts')
-@click.option('--backoff', type=float, default=0.5, help='Retry backoff factor (seconds)')
-@click.option('--configure', is_flag=True, help='Configure API key interactively')
-@click.option('--version', is_flag=True, help='Show version and exit')
-@click.option('--verbose', '-v', is_flag=True, help='Verbose output')
-@click.option('--accent-color', type=click.Choice(['cyan', 'yellow']), default='cyan',
-              help='Accent color for status text')
-@click.option('--concurrency', type=click.IntRange(0, 32), default=0, envvar='STREETVIEW_DL_CONCURRENCY',
-              show_envvar=True, help='Parallel tile download workers (0=auto)')
+@click.argument("url", required=False)
+@click.option("--api-key", help="Google Maps API key")
+@click.option("--output", "-o", help="Output filename")
+@click.option("--output-dir", help="Output directory for batch processing")
+@click.option(
+    "--quality",
+    type=click.Choice(["low", "medium", "high"]),
+    default="medium",
+    help="Image quality/resolution",
+)
+@click.option(
+    "--format",
+    "output_format",
+    type=click.Choice(["jpg", "png", "webp"]),
+    default="jpg",
+    help="Output image format",
+)
+@click.option(
+    "--jpeg-quality",
+    type=click.IntRange(1, 100),
+    default=92,
+    help="JPEG compression quality",
+)
+@click.option(
+    "--max-width", type=int, help="Maximum width (resizes if larger)"
+)
+@click.option(
+    "--fov",
+    type=click.IntRange(60, 360),
+    help="Field of view in degrees (crops panorama around viewing direction)",
+)
+@click.option(
+    "--filter",
+    "image_filter",
+    type=click.Choice(["none", "bw", "sepia", "vintage"]),
+    default="none",
+    help="Apply image filter",
+)
+@click.option(
+    "--brightness", type=float, default=1.0, help="Brightness adjustment"
+)
+@click.option(
+    "--contrast", type=float, default=1.0, help="Contrast adjustment"
+)
+@click.option(
+    "--saturation", type=float, default=1.0, help="Saturation adjustment"
+)
+@click.option(
+    "--clip",
+    type=click.Choice(["none", "left", "right"]),
+    default="none",
+    help="Clip to half panorama relative to view direction",
+)
+@click.option(
+    "--crop-bottom",
+    type=float,
+    default=1.0,
+    help="Keep top fraction of height (0.0-1.0), e.g. 0.75",
+)
+@click.option("--metadata", is_flag=True, help="Save metadata as JSON file")
+@click.option(
+    "--metadata-only", is_flag=True, help="Extract metadata only, no download"
+)
+@click.option("--batch", help="File containing URLs (one per line)")
+@click.option(
+    "--no-xmp", is_flag=True, help="Skip embedding 360° XMP metadata"
+)
+@click.option(
+    "--timeout", type=int, default=30, help="Request timeout in seconds"
+)
+@click.option(
+    "--retries",
+    type=click.IntRange(0, 10),
+    default=3,
+    envvar="STREETVIEW_DL_RETRIES",
+    show_envvar=True,
+    help="HTTP retry attempts",
+)
+@click.option(
+    "--backoff", type=float, default=0.5, help="Retry backoff factor (seconds)"
+)
+@click.option(
+    "--configure", is_flag=True, help="Configure API key interactively"
+)
+@click.option("--version", is_flag=True, help="Show version and exit")
+@click.option("--verbose", "-v", is_flag=True, help="Verbose output")
+@click.option(
+    "--accent-color",
+    type=click.Choice(["cyan", "yellow"]),
+    default="cyan",
+    help="Accent color for status text",
+)
+@click.option(
+    "--concurrency",
+    type=click.IntRange(0, 32),
+    default=0,
+    envvar="STREETVIEW_DL_CONCURRENCY",
+    show_envvar=True,
+    help="Parallel tile download workers (0=auto)",
+)
 def main(
     url: Optional[str],
     api_key: Optional[str],
@@ -138,15 +201,15 @@ def main(
     concurrency: int,
 ) -> None:
     """Download high-resolution Google Street View panoramas."""
-    
+
     if version:
         click.echo(f"streetview-dl {__version__}")
         return
-    
+
     if configure:
         configure_api_key()
         return
-    
+
     # Handle batch processing
     if batch:
         process_batch(
@@ -175,13 +238,13 @@ def main(
             concurrency=concurrency,
         )
         return
-    
+
     # Single URL processing
     if not url:
         click.echo("Error: URL required (or use --batch for multiple URLs)")
         click.echo("Try 'streetview-dl --help' for more information.")
         sys.exit(1)
-    
+
     try:
         process_single_url(
             url=url,
@@ -215,6 +278,7 @@ def main(
         console.print(f"[red]Error: {e}[/red]")
         if verbose:
             import traceback
+
             console.print(traceback.format_exc())
         sys.exit(1)
 
@@ -247,11 +311,11 @@ def process_single_url(
     """Process a single URL."""
     accent = resolve_accent(accent_color)
     start_time = time.perf_counter()
-    
+
     # Validate URL
     if not validate_maps_url(url):
         raise click.ClickException("Invalid Google Maps Street View URL")
-    
+
     # Get API key
     try:
         api_key = get_api_key(api_key)
@@ -259,82 +323,90 @@ def process_single_url(
             raise click.ClickException("Invalid API key format")
     except Exception as e:
         raise click.ClickException(f"API key error: {e}")
-    
+
     # Initialize downloader
-    downloader = StreetViewDownloader(api_key=api_key, timeout=timeout, retries=retries, backoff=backoff)
-    
+    downloader = StreetViewDownloader(
+        api_key=api_key, timeout=timeout, retries=retries, backoff=backoff
+    )
+
     # Extract panorama info
     pano_id, yaw, pitch = extract_from_maps_url(url)
     if not pano_id:
         raise click.ClickException("Could not extract panorama ID from URL")
-    
+
     if verbose:
         console.print(f"[dim]Panorama ID: {pano_id}[/dim]")
         if yaw is not None:
             console.print(f"[dim]Yaw: {yaw:.2f}°[/dim]")
         if pitch is not None:
             console.print(f"[dim]Pitch: {pitch:.2f}°[/dim]")
-    
+
     # Get metadata
     with console.status(f"[bold {accent}]Fetching metadata..."):
         street_view_metadata = downloader.get_metadata(pano_id=pano_id)
         street_view_metadata.url_yaw = yaw
         street_view_metadata.url_pitch = pitch
-    
+
     if verbose:
-        console.print(f"[dim]Resolution: {street_view_metadata.image_width}×{street_view_metadata.image_height}[/dim]")
+        console.print(
+            f"[dim]Resolution: {street_view_metadata.image_width}×{street_view_metadata.image_height}[/dim]"
+        )
         if street_view_metadata.date:
             console.print(f"[dim]Date: {street_view_metadata.date}[/dim]")
-    
+
     # Generate output filename if not provided
     if not output:
         quality_suffix = f"_{quality}" if quality != "medium" else ""
         fov_suffix = f"_{fov}deg" if fov and fov < 360 else ""
         filter_suffix = f"_{image_filter}" if image_filter != "none" else ""
         output = f"streetview_{pano_id}{quality_suffix}{fov_suffix}{filter_suffix}.{output_format}"
-    
+
     # Save metadata if requested
     if metadata or metadata_only:
-        metadata_file = Path(output).with_suffix('.json')
-        with open(metadata_file, 'w') as f:
+        metadata_file = Path(output).with_suffix(".json")
+        with open(metadata_file, "w") as f:
             json.dump(street_view_metadata.to_dict(), f, indent=2)
         console.print(f"[green]Metadata saved: {metadata_file}[/green]")
-    
+
     if metadata_only:
         return
-    
+
     # Calculate total tiles for progress (match core module calculation)
     zoom_map = {"low": 3, "medium": 4, "high": 5}
     z = zoom_map.get(quality, 5)
     scale_factor = 2 ** (5 - z)
     scaled_width = street_view_metadata.image_width // scale_factor
     scaled_height = street_view_metadata.image_height // scale_factor
-    tiles_x = math.ceil(scaled_width / street_view_metadata.tile_width)
-    tiles_y = math.ceil(scaled_height / street_view_metadata.tile_height)
-    total_tiles = tiles_x * tiles_y
-    
+    # Calculate tile dimensions (match core module calculation)
+    # Note: these were calculated but not used in this function
+
     # Download panorama with status updates
     with console.status(f"[bold {accent}]Fetching panorama tiles..."):
         tuned_concurrency = determine_concurrency(quality, concurrency)
         image = downloader.download_panorama(
-            street_view_metadata, 
+            street_view_metadata,
             quality=quality,
             console=console,
             concurrency=tuned_concurrency,
         )
-    
+
     # Process image
     with console.status(f"[bold {accent}]Processing image..."):
         processor = ImageProcessor()
-        
+
         # Apply field-of-view cropping if specified
         if fov and fov < 360 and street_view_metadata.url_yaw is not None:
             image = crop_fov(image, street_view_metadata.url_yaw, fov)
             if verbose:
-                console.print(f"[dim]Cropped to {fov}° around yaw {street_view_metadata.url_yaw:.1f}°[/dim]")
+                console.print(
+                    f"[dim]Cropped to {fov}° around yaw {street_view_metadata.url_yaw:.1f}°[/dim]"
+                )
 
         # Clip left/right half relative to current view yaw if requested
-        if clip in ("left", "right") and street_view_metadata.url_yaw is not None:
+        if (
+            clip in ("left", "right")
+            and street_view_metadata.url_yaw is not None
+        ):
             width, height = image.size
             # In equirectangular, yaw maps linearly to x
             center_x = (street_view_metadata.url_yaw % 360) / 360.0 * width
@@ -355,55 +427,72 @@ def process_single_url(
                 else:
                     left_part = image.crop((left_mod, 0, width, height))
                     right_part = image.crop((0, 0, right_mod, height))
-                    concat = Image.new('RGB', (half_width * 2, height))
+                    concat = Image.new("RGB", (half_width * 2, height))
                     concat.paste(left_part, (0, 0))
                     concat.paste(right_part, (left_part.width, 0))
                     image = concat
             else:
                 image = image.crop((left, 0, right, height))
             if verbose:
-                console.print(f"[dim]Clipped to {'forward' if clip=='right' else 'rear'} 180° half[/dim]")
-        
+                console.print(
+                    f"[dim]Clipped to {'forward' if clip=='right' else 'rear'} 180° half[/dim]"
+                )
+
         if max_width and image.width > max_width:
             scale = max_width / image.width
             new_height = int(image.height * scale)
-            image = image.resize((max_width, new_height), Image.Resampling.LANCZOS)
+            image = image.resize(
+                (max_width, new_height), Image.Resampling.LANCZOS
+            )
             if verbose:
-                console.print(f"[dim]Resized to: {max_width}×{new_height}[/dim]")
-        
-        if image_filter != "none" or brightness != 1.0 or contrast != 1.0 or saturation != 1.0:
+                console.print(
+                    f"[dim]Resized to: {max_width}×{new_height}[/dim]"
+                )
+
+        if (
+            image_filter != "none"
+            or brightness != 1.0
+            or contrast != 1.0
+            or saturation != 1.0
+        ):
             image = processor.apply_filter(image, image_filter)
-            image = processor.adjust_image(image, brightness, contrast, saturation)
+            image = processor.adjust_image(
+                image, brightness, contrast, saturation
+            )
 
         # Bottom crop if requested (< 1.0 keeps top fraction)
         if 0.0 <= crop_bottom < 1.0:
             image = crop_bottom_fraction(image, crop_bottom)
             if verbose:
-                console.print(f"[dim]Cropped bottom to {int(crop_bottom*100)}% height[/dim]")
-    
+                console.print(
+                    f"[dim]Cropped bottom to {int(crop_bottom*100)}% height[/dim]"
+                )
+
     # Save image
     with console.status(f"[bold {accent}]Saving panorama..."):
         save_kwargs = {}
         format_for_save = output_format.upper()
-        if format_for_save == 'JPG':
-            format_for_save = 'JPEG'
-            save_kwargs['quality'] = jpeg_quality
-            save_kwargs['optimize'] = True
-        
+        if format_for_save == "JPG":
+            format_for_save = "JPEG"
+            save_kwargs["quality"] = jpeg_quality
+            save_kwargs["optimize"] = True
+
         # Save with warning suppression for large images
         with warnings.catch_warnings():
-            warnings.filterwarnings("ignore", category=Image.DecompressionBombWarning)
+            warnings.filterwarnings(
+                "ignore", category=Image.DecompressionBombWarning
+            )
             image.save(output, format=format_for_save, **save_kwargs)
-    
+
     # Add XMP metadata for 360° photos
-    if not no_xmp and output_format.lower() == 'jpg':
+    if not no_xmp and output_format.lower() == "jpg":
         with console.status(f"[bold {accent}]Adding 360° metadata..."):
             write_xmp_metadata(output, image)
-    
+
     # Display results
     file_size = Path(output).stat().st_size
     file_size_mb = file_size / (1024 * 1024)
-    
+
     console.print(f"[green]✓ Saved: {output}[/green]")
     console.print(f"[dim]Size: {file_size_mb:.1f} MB[/dim]")
     # Summary block
@@ -419,11 +508,17 @@ def process_single_url(
     adjustments_str = ", ".join(adjustments) if adjustments else "none"
     fov_str = f"{fov}°" if fov and fov < 360 else "360°"
     console.print(f"[bold {accent}]Summary[/bold {accent}]")
-    console.print(f"[dim]Elapsed:[/dim] {elapsed:.2f}s  [dim]Dimensions:[/dim] {dims}  [dim]Quality:[/dim] {quality}")
-    console.print(f"[dim]FOV:[/dim] {fov_str}  [dim]Filter:[/dim] {image_filter}  [dim]Adjustments:[/dim] {adjustments_str}")
-    
+    console.print(
+        f"[dim]Elapsed:[/dim] {elapsed:.2f}s  [dim]Dimensions:[/dim] {dims}  [dim]Quality:[/dim] {quality}"
+    )
+    console.print(
+        f"[dim]FOV:[/dim] {fov_str}  [dim]Filter:[/dim] {image_filter}  [dim]Adjustments:[/dim] {adjustments_str}"
+    )
+
     if street_view_metadata.copyright_info:
-        console.print(f"[dim]Copyright: {street_view_metadata.copyright_info}[/dim]")
+        console.print(
+            f"[dim]Copyright: {street_view_metadata.copyright_info}[/dim]"
+        )
 
 
 def process_batch(
@@ -453,44 +548,50 @@ def process_batch(
 ) -> None:
     """Process multiple URLs from a batch file."""
     accent = resolve_accent(accent_color)
-    
+
     # Read URLs
     try:
-        with open(batch_file, 'r') as f:
+        with open(batch_file, "r") as f:
             urls = [line.strip() for line in f if line.strip()]
     except IOError as e:
         raise click.ClickException(f"Could not read batch file: {e}")
-    
+
     if not urls:
         raise click.ClickException("No URLs found in batch file")
-    
+
     # Setup output directory
     if output_dir:
         output_path = Path(output_dir)
         output_path.mkdir(parents=True, exist_ok=True)
     else:
         output_path = Path.cwd()
-    
-    console.print(f"[{accent}]Processing {len(urls)} URLs...[/]")
-    
+
+    console.print(f"[{accent}]Processing {len(urls)} URLs...[/{accent}]")
+
     success_count = 0
     error_count = 0
-    
+
     for i, url in enumerate(urls, 1):
-        console.print(f"\n[bold]({i}/{len(urls)})[/bold] Processing: {url[:80]}...")
-        
+        console.print(
+            f"\n[bold]({i}/{len(urls)})[/bold] Processing: {url[:80]}..."
+        )
+
         try:
             # Generate output filename
             pano_id, _, _ = extract_from_maps_url(url)
             if pano_id:
                 quality_suffix = f"_{quality}" if quality != "medium" else ""
                 fov_suffix = f"_{fov}deg" if fov and fov < 360 else ""
-                filter_suffix = f"_{image_filter}" if image_filter != "none" else ""
+                filter_suffix = (
+                    f"_{image_filter}" if image_filter != "none" else ""
+                )
                 filename = f"streetview_{pano_id}{quality_suffix}{fov_suffix}{filter_suffix}.{output_format}"
                 output = str(output_path / filename)
             else:
-                output = str(output_path / f"streetview_{i:03d}.{output_format}")
-            
+                output = str(
+                    output_path / f"streetview_{i:03d}.{output_format}"
+                )
+
             process_single_url(
                 url=url,
                 api_key=api_key,
@@ -517,14 +618,15 @@ def process_batch(
                 concurrency=concurrency,
             )
             success_count += 1
-            
+
         except Exception as e:
             console.print(f"[red]✗ Error: {e}[/red]")
             error_count += 1
             if verbose:
                 import traceback
+
                 console.print(f"[dim]{traceback.format_exc()}[/dim]")
-    
+
     # Summary
     console.print(f"\n[bold]Batch complete:[/bold]")
     console.print(f"[green]✓ Successful: {success_count}[/green]")

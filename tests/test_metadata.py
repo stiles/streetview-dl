@@ -56,4 +56,3 @@ def test_metadata_to_dict_roundtrip():
     assert d["image_height"] == 8192
     assert d["tile_width"] == 512
     assert d["tile_height"] == 512
-

@@ -28,4 +28,3 @@ def test_sepia_preserves_tonal_range():
     assert 0 <= r <= 255 and 0 <= g <= 255 and 0 <= b <= 255
     # Red channel should be the highest or comparable in sepia tone
     assert r >= g and r >= b
-
