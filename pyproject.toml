@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "streetview-dl"
-version = "0.3.0"
+version = "0.4.0"
 description = "Download high-resolution Google Street View panoramas from the command line"
 readme = "README.md"
 license = {text = "MIT"}

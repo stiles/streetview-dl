@@ -171,14 +171,36 @@ streetview-dl --saturation 0.6 --output venice_desaturated.jpg "https://maps.url
 
 ## Cropping Options
 
-### Bottom Crop
+### Default Behavior (NEW in v0.4.0)
+By default, streetview-dl now removes the bottom 25% of images to eliminate car blur and dashboard elements.
+
+```bash
+# Default behavior - automatically crops bottom 25%
+streetview-dl --output venice_default_crop.jpg "https://maps.url..."
+```
+
+### Custom Bottom Crop
 ```bash
 streetview-dl --crop-bottom 0.75 --output venice_crop_bottom.jpg "https://maps.url..."
 ```
-- **Effect**: Keeps top 75% of image height
+- **Effect**: Keeps top 75% of image height (same as default)
 - **Use case**: Remove car dashboard, ground clutter, focus on horizon
 
 ![Bottom Crop](examples_output/venice_crop_bottom.jpg)
+
+### Disable Cropping
+```bash
+streetview-dl --no-crop --output venice_no_crop.jpg "https://maps.url..."
+```
+- **Effect**: Keeps full image height (pre-v0.4.0 behavior)
+- **Use case**: Research, VR applications, ground analysis
+
+### Aggressive Cropping
+```bash
+streetview-dl --crop-bottom 0.6 --output venice_aggressive_crop.jpg "https://maps.url..."
+```
+- **Effect**: Keeps top 60% of image height
+- **Use case**: Focus on horizon/sky, social media crops
 
 ## Output Formats
 

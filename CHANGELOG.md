@@ -5,6 +5,20 @@ All notable changes to streetview-dl will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2025-09-27
+
+### Added
+- `--no-crop` convenience flag to disable default bottom cropping
+
+### Changed
+- **BREAKING**: Default behavior now crops bottom 25% of images to remove car blur and dashboard elements
+- Images are automatically cropped to `--crop-bottom 0.75` by default (was 1.0)
+
+### Migration Notes
+- **v0.3.x behavior**: Use `--no-crop` or `--crop-bottom 1.0` to keep full image height
+- **New default**: Bottom 25% is automatically removed unless overridden
+- **Rationale**: Car blur and dashboard elements are rarely wanted in Street View panoramas
+
 ## [0.3.0] - 2025-09-27
 
 ### Added

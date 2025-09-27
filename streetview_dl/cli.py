@@ -126,8 +126,13 @@ def determine_concurrency(quality: str, requested: int) -> int:
 @click.option(
     "--crop-bottom",
     type=float,
-    default=1.0,
+    default=0.75,
     help="Keep top fraction of height (0.0-1.0), e.g. 0.75",
+)
+@click.option(
+    "--no-crop",
+    is_flag=True,
+    help="Disable default bottom cropping (keep full image height)",
 )
 @click.option("--metadata", is_flag=True, help="Save metadata as JSON file")
 @click.option(
@@ -186,6 +191,7 @@ def main(
     saturation: float,
     clip: str,
     crop_bottom: float,
+    no_crop: bool,
     metadata: bool,
     metadata_only: bool,
     batch: Optional[str],
@@ -208,6 +214,10 @@ def main(
     if configure:
         configure_api_key()
         return
+
+    # Handle --no-crop flag
+    if no_crop:
+        crop_bottom = 1.0
 
     # Handle batch processing
     if batch:
@@ -260,6 +270,7 @@ def main(
             saturation=saturation,
             clip=clip,
             crop_bottom=crop_bottom,
+            no_crop=no_crop,
             metadata=metadata,
             metadata_only=metadata_only,
             no_xmp=no_xmp,
@@ -297,6 +308,7 @@ def process_single_url(
     saturation: float,
     clip: str,
     crop_bottom: float,
+    no_crop: bool,
     metadata: bool,
     metadata_only: bool,
     no_xmp: bool,
@@ -310,6 +322,10 @@ def process_single_url(
     """Process a single URL."""
     accent = resolve_accent(accent_color)
     start_time = time.perf_counter()
+
+    # Handle --no-crop flag
+    if no_crop:
+        crop_bottom = 1.0
 
     # Validate URL
     if not validate_maps_url(url):
@@ -588,6 +604,7 @@ def process_batch(
                 saturation=saturation,
                 clip=clip,
                 crop_bottom=crop_bottom,
+                no_crop=False,  # already processed in main()
                 metadata=metadata,
                 metadata_only=metadata_only,
                 no_xmp=no_xmp,

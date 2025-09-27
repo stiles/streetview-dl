@@ -131,7 +131,8 @@ streetview-dl --configure
 --contrast 1.1               # Adjust contrast
 --saturation 0.8             # Adjust color saturation
 --clip left|right|none       # Clip to 180° half relative to view yaw (overrides FOV if < 180°)
---crop-bottom 0.75           # Keep top fraction of height (e.g., 0.75)
+--crop-bottom 0.75           # Keep top fraction of height (default: 0.75 to remove car blur)
+--no-crop                    # Disable default bottom cropping (keep full image)
 ```
 
 ### Metadata and batch processing
@@ -213,6 +214,9 @@ streetview-dl --filter sepia --brightness 1.1 --contrast 0.9 "https://maps.url..
 
 ### Framing and cropping
 ```bash
+# Basic download (automatically removes bottom 25% car blur)
+streetview-dl "https://maps.url..."
+
 # Crop to specific field of view around the viewing direction
 streetview-dl --fov 180 "https://maps.url..."
 
@@ -225,35 +229,17 @@ streetview-dl --clip left "https://maps.url..."
 # Combine FOV cropping with directional clipping (FOV should be ≥ 180°)
 streetview-dl --fov 220 --clip right "https://maps.url..."
 
-# Remove the bottom 25% to avoid car blur
-streetview-dl --crop-bottom 0.75 "https://maps.url..."
+# Keep full image height (disable default car blur removal)
+streetview-dl --no-crop "https://maps.url..."
+
+# Custom bottom crop (more aggressive than default)
+streetview-dl --crop-bottom 0.6 "https://maps.url..."
 
 # Combine all framing options
-streetview-dl --fov 200 --clip right --crop-bottom 0.75 "https://maps.url..."
+streetview-dl --fov 200 --clip right --crop-bottom 0.8 "https://maps.url..."
 ```
 
-#### Framing examples (Venice)
-
-100°, 180°, 220°, 280°, and the full panorama captured from the same spot in Venice:
-
-<p>
-  <img src="https://raw.githubusercontent.com/stiles/streetview-dl/refs/heads/main/example_panoramas/streetview_jGaYvr31o-KsarHZtXbc5w_high_100deg.jpg" alt="100°" width="300" />
-  <img src="https://raw.githubusercontent.com/stiles/streetview-dl/refs/heads/main/example_panoramas/streetview_jGaYvr31o-KsarHZtXbc5w_high_180deg.jpg" alt="180°" width="300" />
-  <img src="https://raw.githubusercontent.com/stiles/streetview-dl/refs/heads/main/example_panoramas/streetview_jGaYvr31o-KsarHZtXbc5w_high_220deg.jpg" alt="220°" width="300" />
-  <img src="https://raw.githubusercontent.com/stiles/streetview-dl/refs/heads/main/example_panoramas/streetview_jGaYvr31o-KsarHZtXbc5w_high_280deg.jpg" alt="280°" width="300" />
-</p>
-<p>
-  <img src="https://raw.githubusercontent.com/stiles/streetview-dl/refs/heads/main/example_panoramas/streetview_jGaYvr31o-KsarHZtXbc5w_high.jpg" alt="Full panorama" width="700" />
-</p>
-
-Command pattern used:
-
-```bash
-streetview-dl 'https://www.google.com/maps/@45.4360629,12.3305426,3a,60y,236.1h,86.64t/data=!3m7!1e1!3m5!1sjGaYvr31o-KsarHZtXbc5w!2e0!6shttps:%2F%2Fstreetviewpixels-pa.googleapis.com%2Fv1%2Fthumbnail%3Fcb_client%3Dmaps_sv.tactile%26w%3D900%26h%3D600%26pitch%3D3.357981416541378%26panoid%3DjGaYvr31o-KsarHZtXbc5w%26yaw%3D236.10458342884988!7i13312!8i6656?entry=ttu' \
-  --quality high --fov <100|180|220|280> --clip right --crop-bottom 0.75
-```
-
-> 💡 **Want to see more examples?** Check out [EXAMPLES.md](EXAMPLES.md) for comprehensive CLI usage examples, or run `python generate_examples.py` to create your own sample outputs using the Venice location above.
+> 💡 **Want to see examples?** Check out [EXAMPLES.md](EXAMPLES.md) for comprehensive CLI usage examples, or run `python generate_examples.py` to create sample outputs. 
 
 ### Batch processing
 ```bash
