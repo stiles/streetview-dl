@@ -5,6 +5,28 @@ All notable changes to streetview-dl will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2025-09-27
+
+### Added
+- Comprehensive unit tests for image cropping functionality
+- Field of view examples section in README
+- Integration warning when combining `--fov` with `--clip` in potentially confusing ways
+- EXAMPLES.md with detailed CLI usage examples, real command outputs, and embedded result images
+- generate_examples.py script to create sample outputs for all major features
+- Street View URL parameter documentation with visual breakdown diagram
+
+### Changed
+- **BREAKING**: Unified `--fov` and `--clip` processing for consistent behavior
+- Improved coordinate system consistency between FOV and directional clipping
+- Enhanced documentation with proper `--fov` option reference and examples
+- Processing order: `--fov` and `--clip` now work together logically instead of sequentially
+
+### Fixed
+- Coordinate system inconsistency between `crop_fov()` and `--clip` implementation
+- Incorrect half-width calculation in directional clipping (was `width // 4`, now properly calculated)
+- Processing order issue where `--fov` and `--clip` could produce unexpected results when combined
+- Missing documentation for `--fov` option in main options reference
+
 ## [0.2.0] - 2025-09-21
 
 ### Added

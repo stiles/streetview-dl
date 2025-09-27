@@ -199,6 +199,97 @@ def crop_fov(
         return image.crop((left, 0, right, height))
 
 
+def crop_horizontal_section(
+    image: Image.Image, 
+    center_yaw: float, 
+    fov_degrees: int, 
+    clip_direction: str = "none"
+) -> Image.Image:
+    """
+    Crop an equirectangular panorama horizontally with unified coordinate system.
+    
+    Args:
+        image: Full equirectangular panorama image
+        center_yaw: Yaw angle in degrees (0-360) for the center of the view
+        fov_degrees: Field of view in degrees (60-360)
+        clip_direction: "none", "left", or "right" - clips to half relative to center_yaw
+        
+    Returns:
+        Cropped image showing the specified section
+    """
+    width, height = image.size
+    
+    # Normalize yaw to 0-360 range
+    center_yaw = center_yaw % 360
+    
+    # Adjust FOV based on clip direction
+    if clip_direction in ("left", "right"):
+        # Force FOV to 180° for directional clipping
+        effective_fov = 180
+        if clip_direction == "left":
+            # Left = opposite direction (add 180°)
+            center_yaw = (center_yaw + 180) % 360
+    else:
+        effective_fov = fov_degrees
+    
+    # Handle full 360° case
+    if effective_fov >= 360:
+        return image
+        
+    # Calculate the horizontal crop boundaries using consistent coordinate system
+    # In equirectangular: yaw maps linearly to x-coordinate
+    center_x = (center_yaw / 360.0) * width
+    
+    # Calculate half the field of view in pixels
+    half_fov_pixels = (effective_fov / 360.0) * width / 2
+    
+    # Calculate crop boundaries
+    left = center_x - half_fov_pixels
+    right = center_x + half_fov_pixels
+    
+    # Handle wraparound for panoramas
+    if left < 0 or right > width:
+        # Need to handle wraparound - create new image by combining parts
+        target_width = int(half_fov_pixels * 2)
+        cropped = Image.new("RGB", (target_width, height))
+        
+        # Normalize coordinates
+        left_mod = int(left % width)
+        right_mod = int(right % width)
+        
+        if left < 0:
+            # Left boundary wraps around
+            left_part_width = width - left_mod
+            right_part_width = int(right)
+            
+            # Get left part (from right side of image)
+            left_part = image.crop((left_mod, 0, width, height))
+            cropped.paste(left_part, (0, 0))
+            
+            # Get right part (from left side of image)  
+            if right_part_width > 0:
+                right_part = image.crop((0, 0, right_part_width, height))
+                cropped.paste(right_part, (left_part_width, 0))
+                
+        else:
+            # Right boundary wraps around
+            left_part_width = width - int(left)
+            
+            # Get left part
+            left_part = image.crop((int(left), 0, width, height))
+            cropped.paste(left_part, (0, 0))
+            
+            # Get right part (wrapped)
+            if right_mod > 0:
+                right_part = image.crop((0, 0, right_mod, height))
+                cropped.paste(right_part, (left_part_width, 0))
+                
+        return cropped
+    else:
+        # Simple crop, no wraparound needed
+        return image.crop((int(left), 0, int(right), height))
+
+
 def crop_bottom_fraction(
     image: Image.Image, keep_fraction: float
 ) -> Image.Image:

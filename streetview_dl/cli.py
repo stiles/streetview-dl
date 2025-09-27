@@ -17,7 +17,7 @@ from .auth import get_api_key, configure_api_key, validate_api_key
 from .core import StreetViewDownloader
 from .metadata import extract_from_maps_url, validate_maps_url
 from .processing import ImageProcessor
-from .utils import write_xmp_metadata, crop_fov, crop_bottom_fraction
+from .utils import write_xmp_metadata, crop_fov, crop_bottom_fraction, crop_horizontal_section
 
 # Suppress PIL DecompressionBombWarning for large panorama images
 warnings.filterwarnings("ignore", category=Image.DecompressionBombWarning)
@@ -332,6 +332,13 @@ def process_single_url(
     pano_id, yaw, pitch = extract_from_maps_url(url)
     if not pano_id:
         raise click.ClickException("Could not extract panorama ID from URL")
+    
+    # Validate option combinations
+    if clip in ("left", "right") and fov and fov < 180:
+        console.print(
+            f"[yellow]Warning: Using --clip {clip} with --fov {fov}° may produce unexpected results. "
+            f"Consider using --fov 180 or larger, or omit --fov to let --clip determine the field of view.[/yellow]"
+        )
 
     if verbose:
         console.print(f"[dim]Panorama ID: {pano_id}[/dim]")
@@ -386,49 +393,31 @@ def process_single_url(
     with console.status(f"[bold {accent}]Processing image..."):
         processor = ImageProcessor()
 
-        # Apply field-of-view cropping if specified
-        if fov and fov < 360 and street_view_metadata.url_yaw is not None:
-            image = crop_fov(image, street_view_metadata.url_yaw, fov)
-            if verbose:
-                console.print(
-                    f"[dim]Cropped to {fov}° around yaw {street_view_metadata.url_yaw:.1f}°[/dim]"
-                )
-
-        # Clip left/right half relative to current view yaw if requested
+        # Apply horizontal cropping (FOV and/or directional clipping) if specified
         if (
-            clip in ("left", "right")
-            and street_view_metadata.url_yaw is not None
-        ):
-            width, height = image.size
-            # In equirectangular, yaw maps linearly to x
-            center_x = (street_view_metadata.url_yaw % 360) / 360.0 * width
-            half_width = width // 4  # 180° equals half the width
-            if clip == "right":  # forward-facing half
-                left = int(center_x - half_width)
-                right = int(center_x + half_width)
-            else:  # left => opposite half
-                left = int(center_x + half_width)
-                right = int(center_x + 3 * half_width)
-            # Normalize with wraparound using paste approach
-            if left < 0 or right > width:
-                # wrap
-                left_mod = left % width
-                right_mod = right % width
-                if left_mod < right_mod:
-                    image = image.crop((left_mod, 0, right_mod, height))
-                else:
-                    left_part = image.crop((left_mod, 0, width, height))
-                    right_part = image.crop((0, 0, right_mod, height))
-                    concat = Image.new("RGB", (half_width * 2, height))
-                    concat.paste(left_part, (0, 0))
-                    concat.paste(right_part, (left_part.width, 0))
-                    image = concat
-            else:
-                image = image.crop((left, 0, right, height))
+            (fov and fov < 360) or clip in ("left", "right")
+        ) and street_view_metadata.url_yaw is not None:
+            # Use unified cropping function that handles both FOV and clipping
+            effective_fov = fov if fov else 360
+            image = crop_horizontal_section(
+                image, street_view_metadata.url_yaw, effective_fov, clip
+            )
+            
             if verbose:
-                console.print(
-                    f"[dim]Clipped to {'forward' if clip == 'right' else 'rear'} 180° half[/dim]"
-                )
+                if clip in ("left", "right"):
+                    direction_text = "forward" if clip == "right" else "rear"
+                    if fov and fov < 360:
+                        console.print(
+                            f"[dim]Cropped to {fov}° {direction_text} half around yaw {street_view_metadata.url_yaw:.1f}°[/dim]"
+                        )
+                    else:
+                        console.print(
+                            f"[dim]Clipped to {direction_text} 180° half around yaw {street_view_metadata.url_yaw:.1f}°[/dim]"
+                        )
+                else:
+                    console.print(
+                        f"[dim]Cropped to {fov}° around yaw {street_view_metadata.url_yaw:.1f}°[/dim]"
+                    )
 
         if max_width and image.width > max_width:
             scale = max_width / image.width

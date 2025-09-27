@@ -5,7 +5,7 @@ from the command line.
 Built on Google's official Map Tiles API.
 """
 
-__version__ = "0.2.0"
+__version__ = "0.3.0"
 __author__ = "Matt Stiles"
 __email__ = "mattstiles@gmail.com"
 

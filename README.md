@@ -23,6 +23,8 @@ cd streetview-dl
 pip install -e .
 ```
 
+> 📚 **Looking for more examples?** See [EXAMPLES.md](EXAMPLES.md) for comprehensive usage examples with real commands and outputs.
+
 ## Quick start
 
 ```bash
@@ -37,6 +39,52 @@ streetview-dl --quality medium "https://maps.url..."
 
 # Black and white filter
 streetview-dl --filter bw "https://maps.url..."
+```
+
+## Understanding Street View URLs
+
+Google Maps Street View URLs contain parameters that determine the viewing perspective. Understanding these helps you use `--fov` and `--clip` options effectively.
+
+Example URL breakdown:
+```
+https://www.google.com/maps/@34.1309317,-118.4732331,3a,75y,32.27h,103.53t/data=...
+                              │          │            │  │   │      │
+                              │          │            │  │   │      └─ Pitch/tilt angle
+                              │          │            │  │   └─ Heading (yaw) in degrees  
+                              │          │            │  └─ Field of view in degrees
+                              │          │            └─ Street View mode token
+                              │          └─ Longitude
+                              └─ Latitude
+```
+
+### Key parameters for image processing:
+
+- **`32.27h`** - **Heading/Yaw** (32.27°): Compass direction the camera faces
+  - 0°/360° = North, 90° = East, 180° = South, 270° = West
+  - Used by `--clip left|right` to determine forward/rear direction
+  
+- **`75y`** - **Field of View** (75°): How much the camera "sees" horizontally  
+  - Smaller values = zoomed in, larger = zoomed out
+  - **Note**: URL FOV is different from `--fov` - URL FOV is the original view, `--fov` crops the downloaded panorama
+  
+- **`103.53t`** - **Pitch/Tilt** (103.53°): Up/down angle of camera
+  - Lower values look up, higher values look down
+  - Affects what you see when using `--crop-bottom`
+
+### How URL parameters relate to options:
+
+```bash
+# URL shows heading 32° - clip to forward-facing 180°
+streetview-dl --clip right "https://maps.url.../32.27h/..."
+
+# URL shows heading 32° - clip to rear-facing 180° (32° + 180° = 212°)  
+streetview-dl --clip left "https://maps.url.../32.27h/..."
+
+# Crop 120° around the URL's heading direction (32°)
+streetview-dl --fov 120 "https://maps.url.../32.27h/..."
+
+# Combine: 200° crop in the forward direction from URL heading
+streetview-dl --fov 200 --clip right "https://maps.url.../32.27h/..."
 ```
 
 ## Setup
@@ -77,11 +125,12 @@ streetview-dl --configure
 
 ### Image processing
 ```bash
+--fov 180                    # Field of view in degrees (60-360, crops around viewing direction)
 --filter bw|sepia|vintage    # Apply artistic filters
 --brightness 1.2             # Adjust brightness
 --contrast 1.1               # Adjust contrast
 --saturation 0.8             # Adjust color saturation
---clip left|right|none       # Clip to 180° half relative to view yaw
+--clip left|right|none       # Clip to 180° half relative to view yaw (overrides FOV if < 180°)
 --crop-bottom 0.75           # Keep top fraction of height (e.g., 0.75)
 ```
 
@@ -138,6 +187,21 @@ streetview-dl "https://maps.url..."
 streetview-dl --quality low "https://maps.url..."
 ```
 
+### Field of view examples
+```bash
+# Narrow 90° view for architectural details
+streetview-dl --fov 90 "https://maps.url..."
+
+# Standard 180° half-panorama
+streetview-dl --fov 180 "https://maps.url..."
+
+# Wide 270° view for context
+streetview-dl --fov 270 "https://maps.url..."
+
+# Combine with quality for detailed crops
+streetview-dl --quality high --fov 120 "https://maps.url..."
+```
+
 ### Artistic filters
 ```bash
 # Black and white
@@ -149,17 +213,23 @@ streetview-dl --filter sepia --brightness 1.1 --contrast 0.9 "https://maps.url..
 
 ### Framing and cropping
 ```bash
-# Keep only the 180° you are facing (uses yaw from the URL)
-streetview-dl --fov 180 --clip right "https://maps.url..."
+# Crop to specific field of view around the viewing direction
+streetview-dl --fov 180 "https://maps.url..."
 
-# Keep the opposite half
-streetview-dl --fov 180 --clip left "https://maps.url..."
+# Clip to forward-facing 180° half (ignores --fov if smaller than 180°)
+streetview-dl --clip right "https://maps.url..."
+
+# Clip to rear-facing 180° half
+streetview-dl --clip left "https://maps.url..."
+
+# Combine FOV cropping with directional clipping (FOV should be ≥ 180°)
+streetview-dl --fov 220 --clip right "https://maps.url..."
 
 # Remove the bottom 25% to avoid car blur
 streetview-dl --crop-bottom 0.75 "https://maps.url..."
 
-# Combine framing and bottom crop
-streetview-dl --fov 180 --clip right --crop-bottom 0.75 "https://maps.url..."
+# Combine all framing options
+streetview-dl --fov 200 --clip right --crop-bottom 0.75 "https://maps.url..."
 ```
 
 #### Framing examples (Venice)
@@ -182,6 +252,8 @@ Command pattern used:
 streetview-dl 'https://www.google.com/maps/@45.4360629,12.3305426,3a,60y,236.1h,86.64t/data=!3m7!1e1!3m5!1sjGaYvr31o-KsarHZtXbc5w!2e0!6shttps:%2F%2Fstreetviewpixels-pa.googleapis.com%2Fv1%2Fthumbnail%3Fcb_client%3Dmaps_sv.tactile%26w%3D900%26h%3D600%26pitch%3D3.357981416541378%26panoid%3DjGaYvr31o-KsarHZtXbc5w%26yaw%3D236.10458342884988!7i13312!8i6656?entry=ttu' \
   --quality high --fov <100|180|220|280> --clip right --crop-bottom 0.75
 ```
+
+> 💡 **Want to see more examples?** Check out [EXAMPLES.md](EXAMPLES.md) for comprehensive CLI usage examples, or run `python generate_examples.py` to create your own sample outputs using the Venice location above.
 
 ### Batch processing
 ```bash
