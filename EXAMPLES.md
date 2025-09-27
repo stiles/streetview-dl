@@ -1,10 +1,10 @@
 # streetview-dl Examples
 
-This document provides comprehensive examples of `streetview-dl` usage with real commands and their outputs. All examples use the same Venice Street View location for consistency.
+This document provides comprehensive examples of `streetview-dl` usage with real commands and their outputs. All examples use the [same Venice Street View location](https://www.google.com/maps/@45.4360629,12.3305426,3a,60y,236.1h,86.64t/data=!3m7!1e1!3m5!1sjGaYvr31o-KsarHZtXbc5w!2e0!6shttps:%2F%2Fstreetviewpixels-pa.googleapis.com%2Fv1%2Fthumbnail%3Fcb_client%3Dmaps_sv.tactile%26w%3D900%26h%3D600%26pitch%3D3.357981416541378%26panoid%3DjGaYvr31o-KsarHZtXbc5w%26yaw%3D236.10458342884988!7i13312!8i6656?entry=ttu) for consistency.
 
 ## Test Location
 
-**Venice, Italy Canal View**
+**[Venice, Italy — Cannaregio Canal](https://www.google.com/maps/@45.4360629,12.3305426,3a,60y,236.1h,86.64t/data=!3m7!1e1!3m5!1sjGaYvr31o-KsarHZtXbc5w!2e0!6shttps:%2F%2Fstreetviewpixels-pa.googleapis.com%2Fv1%2Fthumbnail%3Fcb_client%3Dmaps_sv.tactile%26w%3D900%26h%3D600%26pitch%3D3.357981416541378%26panoid%3DjGaYvr31o-KsarHZtXbc5w%26yaw%3D236.10458342884988!7i13312!8i6656?entry=ttu)**
 - **URL**: `https://www.google.com/maps/@45.4360629,12.3305426,3a,60y,236.1h,86.64t/data=...`
 - **Coordinates**: 45.4360629, 12.3305426
 - **Heading**: 236.1° (Southwest)
