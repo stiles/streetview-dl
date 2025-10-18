@@ -14,16 +14,16 @@ For example, the [6th Street Bridge](https://www.google.com/maps/place/6th+Stree
 ## Installation
 
 ```bash
-# From PyPI (coming soon)
+# From PyPI
 pip install streetview-dl
 
-# From source (current)
+# From source
 git clone https://github.com/yourusername/streetview-dl
 cd streetview-dl
 pip install -e .
 ```
 
-> 📚 **Looking for more examples?** See [EXAMPLES.md](EXAMPLES.md) for comprehensive usage examples with real commands and outputs.
+> **More:** See the tool in action with these [examples](EXAMPLES.md) or read my [Medium post](https://medium.com/@stiles/download-high-resolution-google-street-view-panoramas-in-the-command-line-a800ef16f270) about the it. 
 
 ## Quick start
 
