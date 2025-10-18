@@ -5,6 +5,23 @@ All notable changes to streetview-dl will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.1] - 2025-10-17
+
+### Fixed
+- **Critical bug fix**: FOV parameter not working correctly due to variable name conflict
+- **Default behavior**: Now defaults to full 360° panoramas when no `--fov` specified (was incorrectly using URL-extracted FOV)
+- **CLI parameter precedence**: `--fov` parameter now properly overrides any FOV extracted from URLs
+
+### Technical Details
+- Fixed variable name conflict between CLI `fov` parameter and URL-extracted `fov` in `cli.py`
+- Renamed URL-extracted variable to `url_fov` to prevent collision
+- Corrected metadata assignment: `street_view_metadata.url_fov` now uses URL-extracted value, not CLI parameter
+
+### Impact
+- **Before**: `--fov 360` was ignored, always cropped to URL FOV (e.g., 75°)
+- **After**: `--fov 360` works correctly, gives full panorama
+- **Default behavior**: Full 360° panoramas (8192×3072) instead of narrow crops (1706×3072)
+
 ## [0.5.0] - 2025-10-17
 
 ### Added
