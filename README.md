@@ -11,6 +11,8 @@ For example, the [6th Street Bridge](https://www.google.com/maps/place/6th+Stree
 
 <img src="examples/sixth-street-viaduct-los-angeles.jpg" alt="6th Street Bridge" width="900" />
 
+> **More:** See the tool in action with these [examples](EXAMPLES.md) or read a [Medium post](https://medium.com/@stiles/download-high-resolution-google-street-view-panoramas-in-the-command-line-a800ef16f270) about it. 
+
 ## Installation
 
 ```bash
@@ -22,8 +24,6 @@ git clone https://github.com/yourusername/streetview-dl
 cd streetview-dl
 pip install -e .
 ```
-
-> **More:** See the tool in action with these [examples](EXAMPLES.md) or read my [Medium post](https://medium.com/@stiles/download-high-resolution-google-street-view-panoramas-in-the-command-line-a800ef16f270) about the it. 
 
 ## Quick start
 
