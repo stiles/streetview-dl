@@ -345,7 +345,7 @@ def process_single_url(
     )
 
     # Extract panorama info
-    pano_id, yaw, pitch = extract_from_maps_url(url)
+    pano_id, yaw, pitch, fov, mode_token = extract_from_maps_url(url)
     if not pano_id:
         raise click.ClickException("Could not extract panorama ID from URL")
     
@@ -368,6 +368,8 @@ def process_single_url(
         street_view_metadata = downloader.get_metadata(pano_id=pano_id)
         street_view_metadata.url_yaw = yaw
         street_view_metadata.url_pitch = pitch
+        street_view_metadata.url_fov = fov
+        street_view_metadata.url_mode_token = mode_token
 
     if verbose:
         console.print(
@@ -575,7 +577,7 @@ def process_batch(
 
         try:
             # Generate output filename
-            pano_id, _, _ = extract_from_maps_url(url)
+            pano_id, _, _, _, _ = extract_from_maps_url(url)
             if pano_id:
                 quality_suffix = f"_{quality}" if quality != "medium" else ""
                 fov_suffix = f"_{fov}deg" if fov and fov < 360 else ""

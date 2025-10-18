@@ -5,6 +5,36 @@ All notable changes to streetview-dl will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0] - 2025-10-17
+
+### Added
+- **Enhanced metadata extraction**: Complete implementation of all Google Street View Tile API metadata fields
+- **Camera orientation data**: `heading`, `tilt`, and `roll` fields for 3D reconstruction and analysis
+- **Original location data**: `original_lat`, `original_lng`, and `original_elevation_above_egm96` fields
+- **Address components**: Structured address data with country, locality, route, and street number
+- **Imagery classification**: `imagery_type` field indicating "indoor" or "outdoor" panoramas
+- **Problem reporting**: `report_problem_link` field for quality control and issue reporting
+- **Enhanced URL parsing**: Extract field of view (`url_fov`) and mode token (`url_mode_token`) from Google Maps URLs
+- **Comprehensive test coverage**: New tests for enhanced metadata fields and URL parsing functionality
+
+### Changed
+- **Expanded metadata output**: `--metadata` and `--metadata-only` now extract 11 additional fields from the API
+- **Enhanced URL parsing**: `extract_from_maps_url()` now returns 5 values instead of 3 (pano_id, yaw, pitch, fov, mode_token)
+- **Improved documentation**: README updated with complete metadata field reference and descriptions
+
+### Technical Details
+- Extended `StreetViewMetadata` Pydantic model with new optional fields
+- Updated `from_api_response()` method to extract all available API response fields
+- Enhanced URL regex patterns to capture FOV (e.g., "75y") and mode tokens (e.g., "3a")
+- Maintained full backward compatibility with existing metadata structure
+- All existing functionality preserved without breaking changes
+
+### Developer Benefits
+- **Research applications**: Complete camera orientation and location data for spatial analysis
+- **Content organization**: Enhanced metadata for panorama collection management
+- **Quality control**: Problem reporting links and imagery type classification
+- **Data science**: Rich metadata for machine learning datasets and geocoding applications
+
 ## [0.4.0] - 2025-09-27
 
 ### Added

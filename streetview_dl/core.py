@@ -203,13 +203,15 @@ class StreetViewDownloader:
         """Download panorama from Google Maps URL."""
         from .metadata import extract_from_maps_url
 
-        pano_id, yaw, pitch = extract_from_maps_url(url)
+        pano_id, yaw, pitch, fov, mode_token = extract_from_maps_url(url)
         if not pano_id:
             raise ValueError("Could not extract panorama ID from URL")
 
         metadata = self.get_metadata(pano_id=pano_id)
         metadata.url_yaw = yaw
         metadata.url_pitch = pitch
+        metadata.url_fov = fov
+        metadata.url_mode_token = mode_token
 
         image = self.download_panorama(metadata, quality, console)
         return image, metadata

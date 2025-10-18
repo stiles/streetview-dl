@@ -249,12 +249,41 @@ streetview-dl --batch batch_urls.txt --output-dir ./example_panoramas/
 
 ### Metadata extraction
 ```bash
-# Get location data, capture date, copyright info
+# Get comprehensive metadata including camera orientation, address, and more
 streetview-dl --metadata-only "https://maps.url..."
 
 # Save both image and metadata
 streetview-dl --metadata "https://maps.url..."
 ```
+
+#### Available metadata fields
+The `--metadata` and `--metadata-only` flags extract comprehensive information from Google's Street View Tile API:
+
+**Location & Coordinates:**
+- `lat`, `lng` - Current panorama coordinates
+- `original_lat`, `original_lng` - Original capture coordinates  
+- `original_elevation_above_egm96` - Original elevation in meters
+
+**Camera Orientation:**
+- `heading` - Compass direction (0-360°)
+- `tilt` - Camera pitch angle
+- `roll` - Camera roll rotation
+- `url_yaw`, `url_pitch` - Viewing angles from URL
+- `url_fov` - Field of view from URL (e.g., 75°)
+- `url_mode_token` - Street View mode (e.g., "3a")
+
+**Image Details:**
+- `pano_id` - Unique panorama identifier
+- `image_width`, `image_height` - Full panorama dimensions
+- `tile_width`, `tile_height` - Individual tile dimensions
+- `imagery_type` - "indoor" or "outdoor"
+
+**Capture Information:**
+- `date` - Capture date (YYYY-MM format)
+- `copyright_info` - Attribution text
+- `address_components` - Structured address data
+- `links` - Connected panoramas with headings
+- `report_problem_link` - Problem reporting URL
 
 ## Output
 
