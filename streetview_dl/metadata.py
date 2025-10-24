@@ -48,6 +48,9 @@ class StreetViewMetadata(BaseModel):
     url_mode_token: Optional[str] = Field(
         None, description="Street View mode token from URL (e.g., '3a')"
     )
+    url_date: Optional[str] = Field(
+        None, description="Date from URL (YYYYMMDDTHHMMSS format)"
+    )
 
     # Address and problem reporting
     address_components: Optional[Any] = Field(
@@ -92,20 +95,22 @@ class StreetViewMetadata(BaseModel):
 
 def extract_from_maps_url(
     url: str,
-) -> Tuple[Optional[str], Optional[float], Optional[float], Optional[float], Optional[str]]:
+) -> Tuple[Optional[str], Optional[float], Optional[float], Optional[float], Optional[str], Optional[str]]:
     """
-    Extract panorama ID, yaw, pitch, FOV, and mode token from Google Maps URL.
+    Extract panorama ID, yaw, pitch, FOV, mode token, and date from Google Maps URL.
 
     Returns:
-        Tuple of (pano_id, yaw, pitch, fov, mode_token). Values may be None if not found.
+        Tuple of (pano_id, yaw, pitch, fov, mode_token, date). Values may be None if not found.
+        Date format: YYYYMMDDTHHMMSS if found in URL.
     """
     # Parse URL to get path and query components
     parsed = urlparse.urlparse(url)
     haystack = (parsed.path or "") + "?" + (parsed.query or "")
     
-    # Extract Street View mode token and FOV from URL path
+    # Extract Street View mode token, FOV, and date from URL path
     mode_token = None
     fov = None
+    date = None
     
     # Look for Street View mode token (e.g., "3a")
     mode_match = re.search(r",(\d+a),", haystack)
@@ -119,6 +124,11 @@ def extract_from_maps_url(
             fov = float(fov_match.group(1))
         except (ValueError, TypeError):
             fov = None
+    
+    # Look for date parameter (e.g., "5s20221201T000000")
+    date_match = re.search(r"!5s(\d{8}T\d{6})!", haystack)
+    if date_match:
+        date = date_match.group(1)
 
     # Try to extract from embedded thumbnail URL in the data parameter
     thumbnail_match = re.search(
@@ -140,19 +150,19 @@ def extract_from_maps_url(
         except (ValueError, TypeError):
             yaw = pitch = None
 
-        return pano_id, yaw, pitch, fov, mode_token
+        return pano_id, yaw, pitch, fov, mode_token, date
 
     # Fallback: try to extract panorama ID from the !1s token pattern
     pano_match = re.search(r"!3m5!1s([^!]+)", haystack)
     if pano_match:
-        return pano_match.group(1), None, None, fov, mode_token
+        return pano_match.group(1), None, None, fov, mode_token, date
 
     # Last resort: try direct panoid parameter
     pano_match = re.search(r"[?&]panoid=([^&]+)", haystack)
     if pano_match:
-        return pano_match.group(1), None, None, fov, mode_token
+        return pano_match.group(1), None, None, fov, mode_token, date
 
-    return None, None, None, fov, mode_token
+    return None, None, None, fov, mode_token, date
 
 
 def validate_maps_url(url: str) -> bool:

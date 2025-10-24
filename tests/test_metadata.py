@@ -24,21 +24,23 @@ def test_extract_from_maps_url_thumbnail_query():
         "https://www.google.com/maps/place/data="
         f"!3m8!1e1!3m6!1shttps:%2F%2Fstreetviewpixels-pa.googleapis.com%3F{qs}!7i16384!8i8192"
     )
-    pano_id, yaw, pitch, fov, mode_token = extract_from_maps_url(url)
+    pano_id, yaw, pitch, fov, mode_token, url_date = extract_from_maps_url(url)
     assert pano_id == "TESTPANO"
     assert pytest.approx(yaw, rel=1e-6) == 123.45
     assert pytest.approx(pitch, rel=1e-6) == -1.5
     assert fov is None  # No FOV in this URL
     assert mode_token is None  # No mode token in this URL
+    assert url_date is None  # No date in this test URL
 
 
 def test_extract_from_maps_url_pano_fallback():
     url = "https://www.google.com/maps/place/data=!3m5!1sPANO123!2e0"
-    pano_id, yaw, pitch, fov, mode_token = extract_from_maps_url(url)
+    pano_id, yaw, pitch, fov, mode_token, url_date = extract_from_maps_url(url)
     assert pano_id == "PANO123"
     assert yaw is None and pitch is None
     assert fov is None
     assert mode_token is None
+    assert url_date is None
 
 
 def test_metadata_to_dict_roundtrip():
@@ -65,11 +67,22 @@ def test_metadata_to_dict_roundtrip():
 def test_extract_url_with_fov_and_mode_token():
     """Test extraction of FOV and mode token from URL."""
     url = "https://www.google.com/maps/@34.0385329,-118.2281272,3a,75y,358.11h,95.94t/data=!3m8!1e1"
-    pano_id, yaw, pitch, fov, mode_token = extract_from_maps_url(url)
+    pano_id, yaw, pitch, fov, mode_token, url_date = extract_from_maps_url(url)
     assert fov == 75.0
     assert mode_token == "3a"
     # No pano_id in this URL format
     assert pano_id is None
+    assert url_date is None
+
+
+def test_extract_url_with_date():
+    """Test extraction of date from URL."""
+    url = "https://www.google.com/maps/@33.9966748,-118.4354761,3a,75y,64.64h,86.5t/data=!3m8!1e1!3m6!1sctFnHqFVrVUHPGX5eiV_lA!2e0!5s20221201T000000!6shttps:%2F%2Fstreetviewpixels-pa.googleapis.com%2Fv1%2Fthumbnail%3Fcb_client%3Dmaps_sv.tactile%26w%3D900%26h%3D600%26pitch%3D3.4953573936320765%26panoid%3DctFnHqFVrVUHPGX5eiV_lA%26yaw%3D64.63771863471933!7i16384!8i8192?entry=ttu&g_ep=EgoyMDI1MTAxNC4wIKXMDSoASAFQAw%3D%3D"
+    pano_id, yaw, pitch, fov, mode_token, url_date = extract_from_maps_url(url)
+    assert pano_id == "ctFnHqFVrVUHPGX5eiV_lA"
+    assert url_date == "20221201T000000"
+    assert fov == 75.0
+    assert mode_token == "3a"
 
 
 def test_enhanced_metadata_fields():

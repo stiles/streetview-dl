@@ -7,6 +7,8 @@ Download high-resolution Google Street View panoramas from the command line.
 
 Converts Google Maps Street View URLs into full-resolution equirectangular panorama images. Downloads the raw tiles from Google's official Map Tiles API and stitches them together, preserving maximum quality and adding proper 360° metadata.
 
+**New**: Discover and download historical Street View imagery! The tool can automatically find and download multiple time periods for locations with historical captures, perfect for documenting changes over time.
+
 For example, the [6th Street Bridge](https://www.google.com/maps/place/6th+Street+Viaduct/@34.0385329,-118.2281272,3a,75y,358.11h,95.94t/data=!3m8!1e1!3m6!1sCIHM0ogKEICAgIDOtd7zMw!2e10!3e11!6shttps:%2F%2Flh3.googleusercontent.com%2Fgpms-cs-s%2FAB8u6HZ8quaeJMwSfDyz0Wh_3wg2WqgE6odKd6HZiYKuXLvAxJXzdlvnm2q0vOa1Mq6eYZAkT9Js3QlXM2xFawiOFqDX8uWiCFIby7qafoMtBeQcu0CmibR59Dr7IvDNPBdAzBwBXHDx%3Dw900-h600-k-no-pi-5.943789381254604-ya358.112140877387-ro0-fo100!7i12000!8i6000!4m14!1m7!3m6!1s0x80c2c61861a9652d:0x5a206a650885fc61!2s6th+Street+Viaduct!8m2!3d34.0385329!4d-118.2281272!16s%2Fm%2F026m0x8!3m5!1s0x80c2c61861a9652d:0x5a206a650885fc61!8m2!3d34.0385329!4d-118.2281272!16s%2Fm%2F026m0x8?entry=ttu&g_ep=EgoyMDI1MDkxNy4wIKXMDSoASAFQAw%3D%3D) in Los Angeles: 
 
 <img src="examples/sixth-street-viaduct-los-angeles.jpg" alt="6th Street Bridge" width="900" />
@@ -139,6 +141,8 @@ streetview-dl --configure
 ```bash
 --metadata                   # Save metadata as JSON
 --metadata-only              # Extract metadata without downloading
+--historical                 # Discover and list historical imagery dates for this location
+--historical-download        # Download all available historical images for this location
 --batch urls.txt             # Process multiple URLs
 --output-dir ./panoramas/    # Output directory for batch
 ```
@@ -271,6 +275,7 @@ The `--metadata` and `--metadata-only` flags extract comprehensive information f
 - `url_yaw`, `url_pitch` - Viewing angles from URL
 - `url_fov` - Field of view from URL (e.g., 75°)
 - `url_mode_token` - Street View mode (e.g., "3a")
+- `url_date` - Date from URL if present (YYYYMMDDTHHMMSS format)
 
 **Image Details:**
 - `pano_id` - Unique panorama identifier
@@ -284,6 +289,51 @@ The `--metadata` and `--metadata-only` flags extract comprehensive information f
 - `address_components` - Structured address data
 - `links` - Connected panoramas with headings
 - `report_problem_link` - Problem reporting URL
+
+### Historical imagery discovery
+
+`streetview-dl` can discover and download historical Street View imagery for locations that have multiple capture dates. This feature automatically finds different time periods available at the same location.
+
+```bash
+# Discover available historical dates for a location
+streetview-dl --historical "https://maps.url..."
+
+# Download all available historical panoramas for a location
+streetview-dl --historical-download "https://maps.url..."
+
+# Combine with other options for historical downloads
+streetview-dl --historical-download --quality high --filter bw "https://maps.url..."
+```
+
+#### Example: The Karate Kid apartment
+
+The [South Seas Apartments](https://www.google.com/maps/place/South+Seas+Apartments/@34.2084337,-118.55223,3a,75y,20.27h,80.43t/data=!3m8!1e1!3m6!1s7Dpn21NUjyv7RcROh2qzng!2e0!5s20220901T000000!6shttps:%2F%2Fstreetviewpixels-pa.googleapis.com%2Fv1%2Fthumbnail%3Fcb_client%3Dmaps_sv.tactile%26w%3D900%26h%3D600%26pitch%3D9.570344560327754%26panoid%3D7Dpn21NUjyv7RcROh2qzng%26yaw%3D20.268392957001552!7i16384!8i8192!4m6!3m5!1s0x80c29bc3bd172b07:0xca2e532c1b67608b!8m2!3d34.2085531!4d-118.5522013!16s%2Fg%2F11ghtdt49z?entry=ttu&g_ep=EgoyMDI1MTAxNC4wIKXMDSoASAFQAw%3D%3D) in Reseda, CA (Daniel LaRusso's apartment from The Karate Kid) has multiple historical captures:
+
+```bash
+# Discover historical dates at this famous location
+streetview-dl --historical "https://www.google.com/maps/place/South+Seas+Apartments/@34.2084337,-118.55223,3a,75y,1.07h,79.39t/data=!3m8!1e1!3m6!1s7Dpn21NUjyv7RcROh2qzng!2e0!5s20220901T000000..."
+
+# Download all historical versions
+streetview-dl --historical-download --quality medium "https://maps.url..."
+```
+
+This discovers and downloads panoramas from multiple time periods:
+- **2022-09**: Most recent capture
+- **2021-03**: Mid-pandemic view  
+- **2018-05**: Earlier historical view
+
+See `examples/historical-karate-kid-apartment/` for the actual downloaded images.
+
+#### Limitations
+
+**Important**: Historical discovery has inherent limitations due to Google's API constraints:
+
+- **Partial discovery**: Finds *some* historical dates (Google's web interface may show more)
+- **API limitations**: Google's Map Tiles API doesn't expose the complete historical timeline
+- **Variable results**: Some locations have more discoverable historical data than others
+- **No guaranteed coverage**: Not all locations with "See more dates" in Google Maps will be fully discoverable
+
+The tool uses advanced techniques including deep link traversal and wider area searches to maximize discovery, but cannot match Google's internal historical database access.
 
 ## Output
 

@@ -3,7 +3,7 @@
 import io
 import concurrent.futures as futures
 import math
-from typing import Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import requests
 from requests.adapters import HTTPAdapter
@@ -96,6 +96,145 @@ class StreetViewDownloader:
         )
         response.raise_for_status()
         return StreetViewMetadata.from_api_response(response.json())
+
+    def discover_historical_dates(
+        self,
+        lat: float,
+        lng: float,
+        radius: int = 50,
+        console: Optional[Console] = None,
+    ) -> List[Dict[str, Any]]:
+        """
+        Discover available historical dates for a location.
+        
+        This function searches for panoramas at different time periods by querying
+        the metadata endpoint and checking for date information in the response.
+        
+        Args:
+            lat: Latitude of the location
+            lng: Longitude of the location  
+            radius: Search radius in meters
+            console: Optional console for progress output
+            
+        Returns:
+            List of dictionaries containing pano_id, date, and other metadata
+            for each available historical panorama at this location.
+        """
+        
+        if console:
+            console.print(f"[cyan]Discovering historical imagery for location ({lat}, {lng})...[/cyan]")
+        
+        historical_panoramas = []
+        
+        # Get the current/most recent panorama first
+        current_metadata = None
+        try:
+            current_metadata = self.get_metadata(lat=lat, lng=lng, radius=radius)
+            if current_metadata.date:
+                historical_panoramas.append({
+                    'pano_id': current_metadata.pano_id,
+                    'date': current_metadata.date,
+                    'lat': current_metadata.lat,
+                    'lng': current_metadata.lng,
+                    'is_current': True
+                })
+                
+                if console:
+                    console.print(f"  Found current panorama: {current_metadata.pano_id} ({current_metadata.date})")
+        except Exception as e:
+            if console:
+                console.print(f"[yellow]Warning: Could not get current metadata: {e}[/yellow]")
+        
+        # Check linked panoramas for potential historical versions
+        # Note: This is a basic implementation. Google's API doesn't directly expose
+        # historical dates, but we can check linked panoramas which sometimes
+        # include different time periods.
+        checked_panos = {current_metadata.pano_id} if current_metadata else set()
+        
+        if current_metadata and hasattr(current_metadata, 'links') and current_metadata.links:
+            for link in current_metadata.links:
+                try:
+                    pano_id = link.get('panoId')
+                    if pano_id in checked_panos:
+                        continue
+                    checked_panos.add(pano_id)
+                    
+                    linked_metadata = self.get_metadata(pano_id=pano_id)
+                    if linked_metadata.date and linked_metadata.date != current_metadata.date:
+                        historical_panoramas.append({
+                            'pano_id': linked_metadata.pano_id,
+                            'date': linked_metadata.date,
+                            'lat': linked_metadata.lat,
+                            'lng': linked_metadata.lng,
+                            'is_current': False,
+                            'heading_from_current': link.get('heading')
+                        })
+                        
+                        if console:
+                            console.print(f"  Found historical panorama: {linked_metadata.pano_id} ({linked_metadata.date})")
+                        
+                        # Check second-level links for deeper historical discovery
+                        if hasattr(linked_metadata, 'links') and linked_metadata.links:
+                            for second_link in linked_metadata.links:
+                                try:
+                                    second_pano_id = second_link.get('panoId')
+                                    if second_pano_id in checked_panos:
+                                        continue
+                                    checked_panos.add(second_pano_id)
+                                    
+                                    second_metadata = self.get_metadata(pano_id=second_pano_id)
+                                    if (second_metadata.date and 
+                                        second_metadata.date not in [p['date'] for p in historical_panoramas] and
+                                        second_metadata.date != current_metadata.date):
+                                        
+                                        historical_panoramas.append({
+                                            'pano_id': second_metadata.pano_id,
+                                            'date': second_metadata.date,
+                                            'lat': second_metadata.lat,
+                                            'lng': second_metadata.lng,
+                                            'is_current': False,
+                                            'heading_from_current': second_link.get('heading')
+                                        })
+                                        
+                                        if console:
+                                            console.print(f"  Found deeper historical panorama: {second_metadata.pano_id} ({second_metadata.date})")
+                                except Exception:
+                                    continue
+                                    
+                except Exception:
+                    # Skip failed linked panoramas
+                    continue
+        
+        # Try searching in a slightly wider radius for more historical data
+        if len(historical_panoramas) <= 2:  # Only if we haven't found much
+            try:
+                if console:
+                    console.print("  Searching wider area for more historical imagery...")
+                wider_metadata = self.get_metadata(lat=lat, lng=lng, radius=100)
+                if (wider_metadata.pano_id not in checked_panos and 
+                    wider_metadata.date and 
+                    wider_metadata.date not in [p['date'] for p in historical_panoramas]):
+                    
+                    historical_panoramas.append({
+                        'pano_id': wider_metadata.pano_id,
+                        'date': wider_metadata.date,
+                        'lat': wider_metadata.lat,
+                        'lng': wider_metadata.lng,
+                        'is_current': False
+                    })
+                    
+                    if console:
+                        console.print(f"  Found additional panorama in wider search: {wider_metadata.pano_id} ({wider_metadata.date})")
+            except Exception:
+                pass
+        
+        # Sort by date (newest first)
+        historical_panoramas.sort(key=lambda x: x['date'] or '', reverse=True)
+        
+        if console:
+            console.print(f"[green]Found {len(historical_panoramas)} panorama(s) with date information[/green]")
+        
+        return historical_panoramas
 
     def fetch_tile(
         self, session: str, pano_id: str, z: int, x: int, y: int
@@ -203,7 +342,7 @@ class StreetViewDownloader:
         """Download panorama from Google Maps URL."""
         from .metadata import extract_from_maps_url
 
-        pano_id, yaw, pitch, fov, mode_token = extract_from_maps_url(url)
+        pano_id, yaw, pitch, fov, mode_token, url_date = extract_from_maps_url(url)
         if not pano_id:
             raise ValueError("Could not extract panorama ID from URL")
 
@@ -212,6 +351,7 @@ class StreetViewDownloader:
         metadata.url_pitch = pitch
         metadata.url_fov = fov
         metadata.url_mode_token = mode_token
+        metadata.url_date = url_date
 
         image = self.download_panorama(metadata, quality, console)
         return image, metadata

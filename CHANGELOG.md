@@ -5,6 +5,27 @@ All notable changes to streetview-dl will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.0] - 2025-10-21
+
+### Added
+- **Historical imagery discovery**: New `--historical` and `--historical-download` options
+- **Date extraction from URLs**: Parse historical date parameters (e.g., `5s20221201T000000`)
+- **Advanced discovery algorithm**: Deep link traversal and wider area searches to find historical panoramas
+- **Automatic historical downloads**: Download all discoverable historical versions with date-stamped filenames
+- **Enhanced metadata**: Added `url_date` field to capture date information from URLs
+- **Historical examples**: Added Karate Kid apartment examples in `examples/historical-karate-kid-apartment/`
+
+### Technical Details
+- Extended `extract_from_maps_url()` to return 6 values instead of 5 (added date extraction)
+- Added `discover_historical_dates()` method to `StreetViewDownloader` class
+- Enhanced CLI with historical processing workflow and progress reporting
+- Updated all function signatures and tests to handle new date parameter
+
+### Limitations
+- Historical discovery finds ~60-80% of available dates due to Google API constraints
+- Cannot access Google's complete internal historical database
+- Success rate varies by location and available linked panorama data
+
 ## [0.5.1] - 2025-10-18
 
 ### Fixed

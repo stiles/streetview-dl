@@ -138,6 +138,12 @@ def determine_concurrency(quality: str, requested: int) -> int:
 @click.option(
     "--metadata-only", is_flag=True, help="Extract metadata only, no download"
 )
+@click.option(
+    "--historical", is_flag=True, help="Discover and list historical imagery dates for this location"
+)
+@click.option(
+    "--historical-download", is_flag=True, help="Download all available historical images for this location"
+)
 @click.option("--batch", help="File containing URLs (one per line)")
 @click.option(
     "--no-xmp", is_flag=True, help="Skip embedding 360° XMP metadata"
@@ -194,6 +200,8 @@ def main(
     no_crop: bool,
     metadata: bool,
     metadata_only: bool,
+    historical: bool,
+    historical_download: bool,
     batch: Optional[str],
     no_xmp: bool,
     timeout: int,
@@ -273,6 +281,8 @@ def main(
             no_crop=no_crop,
             metadata=metadata,
             metadata_only=metadata_only,
+            historical=historical,
+            historical_download=historical_download,
             no_xmp=no_xmp,
             timeout=timeout,
             retries=retries,
@@ -311,6 +321,8 @@ def process_single_url(
     no_crop: bool,
     metadata: bool,
     metadata_only: bool,
+    historical: bool,
+    historical_download: bool,
     no_xmp: bool,
     timeout: int,
     retries: int,
@@ -345,7 +357,7 @@ def process_single_url(
     )
 
     # Extract panorama info
-    pano_id, yaw, pitch, url_fov, mode_token = extract_from_maps_url(url)
+    pano_id, yaw, pitch, url_fov, mode_token, url_date = extract_from_maps_url(url)
     if not pano_id:
         raise click.ClickException("Could not extract panorama ID from URL")
     
@@ -370,6 +382,7 @@ def process_single_url(
         street_view_metadata.url_pitch = pitch
         street_view_metadata.url_fov = url_fov  # Use URL-extracted FOV, not CLI FOV
         street_view_metadata.url_mode_token = mode_token
+        street_view_metadata.url_date = url_date
 
     if verbose:
         console.print(
@@ -377,6 +390,111 @@ def process_single_url(
         )
         if street_view_metadata.date:
             console.print(f"[dim]Date: {street_view_metadata.date}[/dim]")
+        if url_date:
+            console.print(f"[dim]URL Date: {url_date}[/dim]")
+
+    # Handle historical discovery mode
+    if historical or historical_download:
+        if not street_view_metadata.lat or not street_view_metadata.lng:
+            raise click.ClickException("Cannot discover historical imagery: no coordinates available")
+        
+        console.print(f"[{accent}]Discovering historical imagery...[/{accent}]")
+        historical_panoramas = downloader.discover_historical_dates(
+            lat=street_view_metadata.lat,
+            lng=street_view_metadata.lng,
+            console=console
+        )
+        
+        if not historical_panoramas:
+            console.print("[yellow]No historical imagery found for this location[/yellow]")
+            return
+        
+        # Display historical dates
+        console.print(f"\n[bold]Found {len(historical_panoramas)} panorama(s):[/bold]")
+        for i, pano in enumerate(historical_panoramas, 1):
+            current_marker = " [green](current)[/green]" if pano.get('is_current') else ""
+            console.print(f"  {i}. {pano['date']} - {pano['pano_id']}{current_marker}")
+        
+        if historical and not historical_download:
+            # Just list, don't download
+            return
+        
+        # Download all historical images
+        console.print(f"\n[{accent}]Downloading {len(historical_panoramas)} historical panorama(s)...[/{accent}]")
+        for i, pano in enumerate(historical_panoramas, 1):
+            try:
+                console.print(f"\n[bold]({i}/{len(historical_panoramas)})[/bold] Downloading {pano['date']} panorama...")
+                
+                # Get metadata for this specific panorama
+                pano_metadata = downloader.get_metadata(pano_id=pano['pano_id'])
+                
+                # Generate filename with date
+                date_suffix = f"_{pano['date']}" if pano['date'] else ""
+                quality_suffix = f"_{quality}" if quality != "medium" else ""
+                fov_suffix = f"_{fov}deg" if fov and fov < 360 else ""
+                filter_suffix = f"_{image_filter}" if image_filter != "none" else ""
+                historical_output = f"streetview_{pano['pano_id']}{date_suffix}{quality_suffix}{fov_suffix}{filter_suffix}.{output_format}"
+                
+                # Download and process the panorama
+                tuned_concurrency = determine_concurrency(quality, concurrency)
+                image = downloader.download_panorama(
+                    pano_metadata, quality, console, tuned_concurrency
+                )
+                
+                # Process image
+                processor = ImageProcessor()
+                
+                # Apply horizontal cropping if specified
+                if (
+                    (fov and fov < 360) or clip in ("left", "right")
+                ) and pano_metadata.url_yaw is not None:
+                    effective_fov = fov if fov else 360
+                    image = crop_horizontal_section(
+                        image, pano_metadata.url_yaw, effective_fov, clip
+                    )
+                
+                # Apply filters and adjustments
+                image = processor.apply_filter(image, image_filter)
+                image = processor.adjust_image(image, brightness, contrast, saturation)
+                
+                # Apply vertical cropping
+                if crop_bottom < 1.0:
+                    image = crop_bottom_fraction(image, crop_bottom)
+                
+                # Resize if needed
+                if max_width and image.width > max_width:
+                    image = processor.resize_if_larger(image, max_width)
+                
+                # Save image
+                save_kwargs = {}
+                if output_format.lower() == "jpg":
+                    save_kwargs["format"] = "JPEG"
+                    save_kwargs["quality"] = jpeg_quality
+                    save_kwargs["optimize"] = True
+                else:
+                    save_kwargs["format"] = output_format.upper()
+                
+                image.save(historical_output, **save_kwargs)
+                
+                # Add XMP metadata for 360° viewers
+                if not no_xmp and output_format.lower() == "jpg":
+                    write_xmp_metadata(historical_output, image)
+                
+                # Save metadata if requested
+                if metadata:
+                    metadata_file = Path(historical_output).with_suffix(".json")
+                    with open(metadata_file, "w") as f:
+                        json.dump(pano_metadata.to_dict(), f, indent=2)
+                
+                console.print(f"[green]✓[/green] Saved: {historical_output}")
+                
+            except Exception as e:
+                console.print(f"[red]✗[/red] Failed to download {pano['date']}: {e}")
+                continue
+        
+        elapsed = time.perf_counter() - start_time
+        console.print(f"\n[{accent}]Historical download completed in {elapsed:.1f}s[/{accent}]")
+        return
 
     # Generate output filename if not provided
     if not output:
@@ -577,7 +695,7 @@ def process_batch(
 
         try:
             # Generate output filename
-            pano_id, _, _, _, _ = extract_from_maps_url(url)
+            pano_id, _, _, _, _, _ = extract_from_maps_url(url)
             if pano_id:
                 quality_suffix = f"_{quality}" if quality != "medium" else ""
                 fov_suffix = f"_{fov}deg" if fov and fov < 360 else ""
