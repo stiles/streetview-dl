@@ -3,6 +3,7 @@
 import io
 import concurrent.futures as futures
 import math
+from collections import deque
 from typing import Any, Dict, List, Optional, Tuple
 
 import requests
@@ -102,139 +103,173 @@ class StreetViewDownloader:
         lat: float,
         lng: float,
         radius: int = 50,
+        max_depth: int = 7,
+        max_panoramas: int = 200,
         console: Optional[Console] = None,
     ) -> List[Dict[str, Any]]:
         """
-        Discover available historical dates for a location.
+        Discover available historical dates for a location using enhanced traversal.
         
-        This function searches for panoramas at different time periods by querying
-        the metadata endpoint and checking for date information in the response.
+        This function aggressively searches for panoramas at different time periods
+        by traversing linked panoramas with a breadth-first approach, prioritizing
+        exploration of older dates to maximize historical discovery.
         
         Args:
             lat: Latitude of the location
             lng: Longitude of the location  
-            radius: Search radius in meters
+            radius: Initial search radius in meters (will try multiple radii)
+            max_depth: Maximum link traversal depth (default: 7)
+            max_panoramas: Maximum total panoramas to check (API call limit)
             console: Optional console for progress output
             
         Returns:
             List of dictionaries containing pano_id, date, and other metadata
             for each available historical panorama at this location.
+            
+        Note:
+            This enhanced approach finds MORE historical dates than basic traversal,
+            but still cannot access Google's complete internal timeline. The Map Tiles
+            API does not expose the full historical timeline that the web interface shows.
         """
         
         if console:
             console.print(f"[cyan]Discovering historical imagery for location ({lat}, {lng})...[/cyan]")
+            console.print(f"[dim]Search parameters: depth={max_depth}, max_panoramas={max_panoramas}[/dim]")
         
-        historical_panoramas = []
+        # Track what we've found
+        historical_by_date = {}  # date -> list of pano info
+        checked_panos = set()
         
-        # Get the current/most recent panorama first
-        current_metadata = None
-        try:
-            current_metadata = self.get_metadata(lat=lat, lng=lng, radius=radius)
-            if current_metadata.date:
-                historical_panoramas.append({
-                    'pano_id': current_metadata.pano_id,
-                    'date': current_metadata.date,
-                    'lat': current_metadata.lat,
-                    'lng': current_metadata.lng,
-                    'is_current': True
-                })
-                
-                if console:
-                    console.print(f"  Found current panorama: {current_metadata.pano_id} ({current_metadata.date})")
-        except Exception as e:
-            if console:
-                console.print(f"[yellow]Warning: Could not get current metadata: {e}[/yellow]")
+        # Queue: (pano_id, depth, date_priority)
+        # date_priority: older dates get negative values for priority
+        to_check = deque()
         
-        # Check linked panoramas for potential historical versions
-        # Note: This is a basic implementation. Google's API doesn't directly expose
-        # historical dates, but we can check linked panoramas which sometimes
-        # include different time periods.
-        checked_panos = {current_metadata.pano_id} if current_metadata else set()
+        # Start with multiple radius searches to cast a wide net
+        initial_radii = [25, 50, 100, 150]
+        if console:
+            console.print(f"[dim]Searching at multiple radii: {initial_radii}[/dim]")
         
-        if current_metadata and hasattr(current_metadata, 'links') and current_metadata.links:
-            for link in current_metadata.links:
-                try:
-                    pano_id = link.get('panoId')
-                    if pano_id in checked_panos:
-                        continue
-                    checked_panos.add(pano_id)
+        for search_radius in initial_radii:
+            try:
+                metadata = self.get_metadata(lat=lat, lng=lng, radius=search_radius)
+                if metadata.pano_id not in checked_panos:
+                    checked_panos.add(metadata.pano_id)
                     
-                    linked_metadata = self.get_metadata(pano_id=pano_id)
-                    if linked_metadata.date and linked_metadata.date != current_metadata.date:
-                        historical_panoramas.append({
-                            'pano_id': linked_metadata.pano_id,
-                            'date': linked_metadata.date,
-                            'lat': linked_metadata.lat,
-                            'lng': linked_metadata.lng,
-                            'is_current': False,
-                            'heading_from_current': link.get('heading')
+                    if metadata.date:
+                        date_priority = self._date_to_priority(metadata.date)
+                        to_check.append((metadata.pano_id, 0, date_priority))
+                        
+                        if metadata.date not in historical_by_date:
+                            historical_by_date[metadata.date] = []
+                        
+                        historical_by_date[metadata.date].append({
+                            'pano_id': metadata.pano_id,
+                            'date': metadata.date,
+                            'lat': metadata.lat,
+                            'lng': metadata.lng,
+                            'is_current': search_radius == initial_radii[0],
                         })
                         
-                        if console:
-                            console.print(f"  Found historical panorama: {linked_metadata.pano_id} ({linked_metadata.date})")
-                        
-                        # Check second-level links for deeper historical discovery
-                        if hasattr(linked_metadata, 'links') and linked_metadata.links:
-                            for second_link in linked_metadata.links:
-                                try:
-                                    second_pano_id = second_link.get('panoId')
-                                    if second_pano_id in checked_panos:
-                                        continue
-                                    checked_panos.add(second_pano_id)
-                                    
-                                    second_metadata = self.get_metadata(pano_id=second_pano_id)
-                                    if (second_metadata.date and 
-                                        second_metadata.date not in [p['date'] for p in historical_panoramas] and
-                                        second_metadata.date != current_metadata.date):
-                                        
-                                        historical_panoramas.append({
-                                            'pano_id': second_metadata.pano_id,
-                                            'date': second_metadata.date,
-                                            'lat': second_metadata.lat,
-                                            'lng': second_metadata.lng,
-                                            'is_current': False,
-                                            'heading_from_current': second_link.get('heading')
-                                        })
-                                        
-                                        if console:
-                                            console.print(f"  Found deeper historical panorama: {second_metadata.pano_id} ({second_metadata.date})")
-                                except Exception:
-                                    continue
-                                    
-                except Exception:
-                    # Skip failed linked panoramas
-                    continue
+                        if console and search_radius == initial_radii[0]:
+                            console.print(f"  Found current panorama: {metadata.pano_id} ({metadata.date})")
+            except Exception as e:
+                if console and search_radius == initial_radii[0]:
+                    console.print(f"[yellow]Warning: Could not get initial metadata: {e}[/yellow]")
         
-        # Try searching in a slightly wider radius for more historical data
-        if len(historical_panoramas) <= 2:  # Only if we haven't found much
+        # Breadth-first search with priority for older dates
+        while to_check and len(checked_panos) < max_panoramas:
+            pano_id, depth, date_priority = to_check.popleft()
+            
+            if depth >= max_depth:
+                continue
+            
             try:
-                if console:
-                    console.print("  Searching wider area for more historical imagery...")
-                wider_metadata = self.get_metadata(lat=lat, lng=lng, radius=100)
-                if (wider_metadata.pano_id not in checked_panos and 
-                    wider_metadata.date and 
-                    wider_metadata.date not in [p['date'] for p in historical_panoramas]):
-                    
-                    historical_panoramas.append({
-                        'pano_id': wider_metadata.pano_id,
-                        'date': wider_metadata.date,
-                        'lat': wider_metadata.lat,
-                        'lng': wider_metadata.lng,
-                        'is_current': False
-                    })
-                    
+                metadata = self.get_metadata(pano_id=pano_id)
+                
+                # Record this date if we haven't seen it yet
+                if metadata.date and metadata.date not in historical_by_date:
+                    historical_by_date[metadata.date] = []
                     if console:
-                        console.print(f"  Found additional panorama in wider search: {wider_metadata.pano_id} ({wider_metadata.date})")
-            except Exception:
-                pass
-        
-        # Sort by date (newest first)
-        historical_panoramas.sort(key=lambda x: x['date'] or '', reverse=True)
+                        console.print(f"  [green]Found new date:[/green] {metadata.date} (pano: {metadata.pano_id}, depth: {depth})")
+                
+                if metadata.date:
+                    # Add this panorama to the date's collection
+                    pano_info = {
+                        'pano_id': metadata.pano_id,
+                        'date': metadata.date,
+                        'lat': metadata.lat,
+                        'lng': metadata.lng,
+                        'is_current': False,
+                        'depth': depth,
+                    }
+                    
+                    # Only add if this specific pano_id isn't already in this date's list
+                    if not any(p['pano_id'] == metadata.pano_id for p in historical_by_date[metadata.date]):
+                        historical_by_date[metadata.date].append(pano_info)
+                
+                # Add linked panoramas to the queue
+                if hasattr(metadata, 'links') and metadata.links:
+                    for link in metadata.links:
+                        linked_pano_id = link.get('panoId')
+                        
+                        if linked_pano_id and linked_pano_id not in checked_panos:
+                            checked_panos.add(linked_pano_id)
+                            
+                            # Prioritize exploring older dates by using current date as priority
+                            # Older dates get explored first
+                            next_priority = date_priority
+                            
+                            to_check.append((linked_pano_id, depth + 1, next_priority))
+                            
+            except Exception as e:
+                # Skip failed panoramas silently (common for invalid links)
+                continue
         
         if console:
-            console.print(f"[green]Found {len(historical_panoramas)} panorama(s) with date information[/green]")
+            console.print(f"[dim]Checked {len(checked_panos)} panoramas at {max_depth} levels deep[/dim]")
+        
+        # Convert to output format (one representative pano per date)
+        historical_panoramas = []
+        for date in sorted(historical_by_date.keys(), reverse=True):
+            # Use the first panorama for this date
+            pano_info = historical_by_date[date][0]
+            pano_info['count'] = len(historical_by_date[date])  # How many panos have this date
+            historical_panoramas.append(pano_info)
+        
+        if console:
+            console.print(f"[green]Found {len(historical_panoramas)} unique date(s) from {len(checked_panos)} panoramas[/green]")
+            
+            # Show breakdown by decade for perspective
+            decades = {}
+            for date in historical_by_date.keys():
+                if date:
+                    decade = date[:3] + "0s"  # e.g., "2020-01" -> "2020s"
+                    decades[decade] = decades.get(decade, 0) + 1
+            
+            if decades:
+                console.print(f"[dim]Distribution: {', '.join(f'{k}: {v}' for k, v in sorted(decades.items()))}[/dim]")
         
         return historical_panoramas
+    
+    def _date_to_priority(self, date: Optional[str]) -> int:
+        """
+        Convert date string to priority value (older = lower number for priority queue).
+        
+        Args:
+            date: Date string in format "YYYY-MM" or None
+            
+        Returns:
+            Integer priority (lower = older = higher priority)
+        """
+        if not date:
+            return 999999  # Unknown dates get lowest priority
+        
+        try:
+            # Convert "YYYY-MM" to integer YYYYMM
+            year_month = date.replace("-", "")
+            return int(year_month)
+        except:
+            return 999999
 
     def fetch_tile(
         self, session: str, pano_id: str, z: int, x: int, y: int

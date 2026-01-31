@@ -144,6 +144,18 @@ def determine_concurrency(quality: str, requested: int) -> int:
 @click.option(
     "--historical-download", is_flag=True, help="Download all available historical images for this location"
 )
+@click.option(
+    "--historical-max-depth",
+    type=click.IntRange(1, 10),
+    default=7,
+    help="Maximum link traversal depth for historical discovery (1-10, default: 7)",
+)
+@click.option(
+    "--historical-max-panoramas",
+    type=click.IntRange(50, 500),
+    default=200,
+    help="Maximum panoramas to check during historical discovery (50-500, default: 200)",
+)
 @click.option("--batch", help="File containing URLs (one per line)")
 @click.option(
     "--no-xmp", is_flag=True, help="Skip embedding 360° XMP metadata"
@@ -202,6 +214,8 @@ def main(
     metadata_only: bool,
     historical: bool,
     historical_download: bool,
+    historical_max_depth: int,
+    historical_max_panoramas: int,
     batch: Optional[str],
     no_xmp: bool,
     timeout: int,
@@ -283,6 +297,8 @@ def main(
             metadata_only=metadata_only,
             historical=historical,
             historical_download=historical_download,
+            historical_max_depth=historical_max_depth,
+            historical_max_panoramas=historical_max_panoramas,
             no_xmp=no_xmp,
             timeout=timeout,
             retries=retries,
@@ -323,6 +339,8 @@ def process_single_url(
     metadata_only: bool,
     historical: bool,
     historical_download: bool,
+    historical_max_depth: int,
+    historical_max_panoramas: int,
     no_xmp: bool,
     timeout: int,
     retries: int,
@@ -399,9 +417,13 @@ def process_single_url(
             raise click.ClickException("Cannot discover historical imagery: no coordinates available")
         
         console.print(f"[{accent}]Discovering historical imagery...[/{accent}]")
+        if verbose:
+            console.print(f"[dim]Using max_depth={historical_max_depth}, max_panoramas={historical_max_panoramas}[/dim]")
         historical_panoramas = downloader.discover_historical_dates(
             lat=street_view_metadata.lat,
             lng=street_view_metadata.lng,
+            max_depth=historical_max_depth,
+            max_panoramas=historical_max_panoramas,
             console=console
         )
         

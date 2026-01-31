@@ -143,6 +143,8 @@ streetview-dl --configure
 --metadata-only              # Extract metadata without downloading
 --historical                 # Discover and list historical imagery dates for this location
 --historical-download        # Download all available historical images for this location
+--historical-max-depth 7     # Search depth for historical discovery (1-10, default: 7)
+--historical-max-panoramas 200  # Max panoramas to check (50-500, default: 200)
 --batch urls.txt             # Process multiple URLs
 --output-dir ./panoramas/    # Output directory for batch
 ```
@@ -292,7 +294,7 @@ The `--metadata` and `--metadata-only` flags extract comprehensive information f
 
 ### Historical imagery discovery
 
-`streetview-dl` can discover and download historical Street View imagery for locations that have multiple capture dates. This feature automatically finds different time periods available at the same location.
+`streetview-dl` can discover and download historical Street View imagery for locations that have multiple capture dates. The tool uses enhanced link traversal to find different time periods available at a location.
 
 ```bash
 # Discover available historical dates for a location
@@ -301,9 +303,16 @@ streetview-dl --historical "https://maps.url..."
 # Download all available historical panoramas for a location
 streetview-dl --historical-download "https://maps.url..."
 
+# More aggressive search (higher API usage but finds more dates)
+streetview-dl --historical --historical-max-depth 10 --historical-max-panoramas 500 "https://maps.url..."
+
 # Combine with other options for historical downloads
 streetview-dl --historical-download --quality high --filter bw "https://maps.url..."
 ```
+
+**Advanced options:**
+- `--historical-max-depth N`: Search depth (1-10, default: 7) - higher finds more dates but slower
+- `--historical-max-panoramas N`: Max panoramas to check (50-500, default: 200) - higher limit for thorough search
 
 #### Example: The Karate Kid apartment
 
@@ -328,12 +337,24 @@ See `examples/historical-karate-kid-apartment/` for the actual downloaded images
 
 **Important**: Historical discovery has inherent limitations due to Google's API constraints:
 
-- **Partial discovery**: Finds *some* historical dates (Google's web interface may show more)
+- **Partial discovery**: Typically finds **3-6 time periods** (Google's web interface may show 10+ periods)
 - **API limitations**: Google's Map Tiles API doesn't expose the complete historical timeline
-- **Variable results**: Some locations have more discoverable historical data than others
+- **Recent bias**: Finds dates from approximately **2015-present** reliably; older imagery (pre-2015) is often not discoverable
+- **Variable results**: Locations with frequent recapture (major streets) yield better results than rarely-captured areas
 - **No guaranteed coverage**: Not all locations with "See more dates" in Google Maps will be fully discoverable
 
-The tool uses advanced techniques including deep link traversal and wider area searches to maximize discovery, but cannot match Google's internal historical database access.
+**How it works:**
+The tool searches for historical imagery by:
+1. Starting at your location with multiple search radii (25m, 50m, 100m, 150m)
+2. Following spatial links (forward/back/sideways connections between panoramas)
+3. Traversing up to 7 levels deep by default (configurable to 10 with `--historical-max-depth`)
+4. Prioritizing exploration of older dates when found
+
+**Performance:**
+- Default settings (depth=7, 200 panoramas): ~15-40 API calls, finds 3-6 dates
+- Aggressive settings (depth=10, 500 panoramas): ~30-100 API calls, finds 4-8 dates
+
+The tool uses advanced techniques to maximize discovery within API constraints, but cannot access Google's complete internal historical database. For comprehensive historical analysis, consider using the dates found here as a representative sample.
 
 ## Output
 

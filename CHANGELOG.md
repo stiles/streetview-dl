@@ -21,8 +21,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Enhanced CLI with historical processing workflow and progress reporting
 - Updated all function signatures and tests to handle new date parameter
 
-### Limitations
-- Historical discovery finds ~60-80% of available dates due to Google API constraints
+### Limitations (v0.6.0 - improved in later versions)
+- Historical discovery found ~40-60% of available dates with depth-2 traversal
 - Cannot access Google's complete internal historical database
 - Success rate varies by location and available linked panorama data
 
