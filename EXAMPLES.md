@@ -5,10 +5,10 @@ This document provides comprehensive examples of `streetview-dl` usage with real
 ## Test Location
 
 **[Venice, Italy — Cannaregio Canal](https://www.google.com/maps/@45.4360629,12.3305426,3a,60y,236.1h,86.64t/data=!3m7!1e1!3m5!1sjGaYvr31o-KsarHZtXbc5w!2e0!6shttps:%2F%2Fstreetviewpixels-pa.googleapis.com%2Fv1%2Fthumbnail%3Fcb_client%3Dmaps_sv.tactile%26w%3D900%26h%3D600%26pitch%3D3.357981416541378%26panoid%3DjGaYvr31o-KsarHZtXbc5w%26yaw%3D236.10458342884988!7i13312!8i6656?entry=ttu)**
-- **URL**: `https://www.google.com/maps/@45.4360629,12.3305426,3a,60y,236.1h,86.64t/data=...`
+- **URL**: `https://www.google.com/maps/@45.4360629,12.3305426,3a,60y,236.1h,86.64t/data=...` (includes `h` heading + `t` pitch tokens)
 - **Coordinates**: 45.4360629, 12.3305426
-- **Heading**: 236.1° (Southwest)
-- **Pitch**: 86.64° (Looking slightly down)
+- **Heading**: 236.1° (Southwest, from the URL `...h` token)
+- **Pitch**: 86.64° (Looking slightly down, from the URL `...t` token)
 - **Original FOV**: 60° (zoomed in view)
 
 ## Running the Examples
@@ -55,18 +55,27 @@ streetview-dl --quality high --output venice_high_quality.jpg "https://maps.url.
 
 ## Field of View Examples
 
+The following FOV examples use a URL that includes both the `h` (heading) and `t` (pitch) tokens so the crop has a defined view center:
+
+```text
+https://www.google.com/maps/@45.4360629,12.3305426,3a,60y,236.1h,86.64t/data=!3m7!1e1!3m5!1sjGaYvr31o-KsarHZtXbc5w!2e0!6shttps:%2F%2Fstreetviewpixels-pa.googleapis.com%2Fv1%2Fthumbnail%3Fcb_client%3Dmaps_sv.tactile%26w%3D900%26h%3D600%26pitch%3D3.357981416541378%26panoid%3DjGaYvr31o-KsarHZtXbc5w%26yaw%3D236.10458342884988!7i13312!8i6656?entry=ttu
+```
+
 ### Narrow 90° View
 ```bash
-streetview-dl --fov 90 --output venice_fov_90deg.jpg "https://maps.url..."
+streetview-dl --fov 90 --output venice_fov_90deg.jpg \
+"https://www.google.com/maps/@45.4360629,12.3305426,3a,60y,236.1h,86.64t/data=!3m7!1e1!3m5!1sjGaYvr31o-KsarHZtXbc5w!2e0!6shttps:%2F%2Fstreetviewpixels-pa.googleapis.com%2Fv1%2Fthumbnail%3Fcb_client%3Dmaps_sv.tactile%26w%3D900%26h%3D600%26pitch%3D3.357981416541378%26panoid%3DjGaYvr31o-KsarHZtXbc5w%26yaw%3D236.10458342884988!7i13312!8i6656?entry=ttu"
 ```
 - **Use case**: Architectural details, focused composition
 - **Result**: Crops to 90° around the URL's heading (236°)
+- **Note**: FOV cropping uses the heading (`...h`) in the URL. If the URL lacks `h`, no horizontal crop is applied.
 
 ![90° FOV](examples/venice_fov_90deg.jpg)
 
 ### Standard 180° Half-Panorama
 ```bash
-streetview-dl --fov 180 --output venice_fov_180deg.jpg "https://maps.url..."
+streetview-dl --fov 180 --output venice_fov_180deg.jpg \
+"https://www.google.com/maps/@45.4360629,12.3305426,3a,60y,236.1h,86.64t/data=!3m7!1e1!3m5!1sjGaYvr31o-KsarHZtXbc5w!2e0!6shttps:%2F%2Fstreetviewpixels-pa.googleapis.com%2Fv1%2Fthumbnail%3Fcb_client%3Dmaps_sv.tactile%26w%3D900%26h%3D600%26pitch%3D3.357981416541378%26panoid%3DjGaYvr31o-KsarHZtXbc5w%26yaw%3D236.10458342884988!7i13312!8i6656?entry=ttu"
 ```
 - **Use case**: Standard wide-angle view
 - **Result**: Half the full panorama width
@@ -75,7 +84,8 @@ streetview-dl --fov 180 --output venice_fov_180deg.jpg "https://maps.url..."
 
 ### Wide 270° View
 ```bash
-streetview-dl --fov 270 --output venice_fov_270deg.jpg "https://maps.url..."
+streetview-dl --fov 270 --output venice_fov_270deg.jpg \
+"https://www.google.com/maps/@45.4360629,12.3305426,3a,60y,236.1h,86.64t/data=!3m7!1e1!3m5!1sjGaYvr31o-KsarHZtXbc5w!2e0!6shttps:%2F%2Fstreetviewpixels-pa.googleapis.com%2Fv1%2Fthumbnail%3Fcb_client%3Dmaps_sv.tactile%26w%3D900%26h%3D600%26pitch%3D3.357981416541378%26panoid%3DjGaYvr31o-KsarHZtXbc5w%26yaw%3D236.10458342884988!7i13312!8i6656?entry=ttu"
 ```
 - **Use case**: Context, environmental documentation
 - **Result**: Three-quarters of the full panorama
@@ -347,11 +357,15 @@ The `generate_examples.py` script creates files with descriptive names:
    - Set `GOOGLE_MAPS_API_KEY` environment variable
    - Ensure Map Tiles API is enabled in Google Cloud Console
 
-3. **"No panorama data available"**
+3. **"--fov doesn't crop horizontally"**
+   - Ensure the URL includes a heading token (e.g., `...,236.1h,...`)
+   - Use the Street View share link (not the place URL) so `h` and `t` are present
+
+4. **"No panorama data available"**
    - The panorama may have been removed or restricted
    - Try a different location
 
-4. **Files larger than expected**
+5. **Files larger than expected**
    - Use `--max-width` to limit dimensions
    - Lower `--jpeg-quality` for smaller files
    - Use `--quality low` for quick tests

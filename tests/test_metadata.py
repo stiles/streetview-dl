@@ -70,6 +70,8 @@ def test_extract_url_with_fov_and_mode_token():
     pano_id, yaw, pitch, fov, mode_token, url_date = extract_from_maps_url(url)
     assert fov == 75.0
     assert mode_token == "3a"
+    assert pytest.approx(yaw, rel=1e-6) == 358.11
+    assert pytest.approx(pitch, rel=1e-6) == 95.94
     # No pano_id in this URL format
     assert pano_id is None
     assert url_date is None

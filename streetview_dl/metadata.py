@@ -111,6 +111,8 @@ def extract_from_maps_url(
     mode_token = None
     fov = None
     date = None
+    yaw_from_path = None
+    pitch_from_path = None
     
     # Look for Street View mode token (e.g., "3a")
     mode_match = re.search(r",(\d+a),", haystack)
@@ -124,6 +126,21 @@ def extract_from_maps_url(
             fov = float(fov_match.group(1))
         except (ValueError, TypeError):
             fov = None
+
+    # Look for heading/yaw (e.g., "262.32h") and tilt/pitch (e.g., "84.37t")
+    yaw_match = re.search(r",(-?\d+(?:\.\d+)?)h(?:,|/|$)", haystack)
+    if yaw_match:
+        try:
+            yaw_from_path = float(yaw_match.group(1))
+        except (ValueError, TypeError):
+            yaw_from_path = None
+
+    pitch_match = re.search(r",(-?\d+(?:\.\d+)?)t(?:,|/|$)", haystack)
+    if pitch_match:
+        try:
+            pitch_from_path = float(pitch_match.group(1))
+        except (ValueError, TypeError):
+            pitch_from_path = None
     
     # Look for date parameter (e.g., "5s20221201T000000")
     date_match = re.search(r"!5s(\d{8}T\d{6})!", haystack)
@@ -141,28 +158,33 @@ def extract_from_maps_url(
         qs_params = urlparse.parse_qs(qs_decoded)
 
         pano_id = qs_params.get("panoid", [None])[0]
-        yaw_str = qs_params.get("yaw", ["0"])[0]
-        pitch_str = qs_params.get("pitch", ["0"])[0]
+        yaw_str = qs_params.get("yaw", [None])[0]
+        pitch_str = qs_params.get("pitch", [None])[0]
 
         try:
-            yaw = float(yaw_str) if yaw_str else None
-            pitch = float(pitch_str) if pitch_str else None
+            yaw = float(yaw_str) if yaw_str is not None else None
+            pitch = float(pitch_str) if pitch_str is not None else None
         except (ValueError, TypeError):
             yaw = pitch = None
+
+        if yaw is None:
+            yaw = yaw_from_path
+        if pitch is None:
+            pitch = pitch_from_path
 
         return pano_id, yaw, pitch, fov, mode_token, date
 
     # Fallback: try to extract panorama ID from the !1s token pattern
     pano_match = re.search(r"!3m5!1s([^!]+)", haystack)
     if pano_match:
-        return pano_match.group(1), None, None, fov, mode_token, date
+        return pano_match.group(1), yaw_from_path, pitch_from_path, fov, mode_token, date
 
     # Last resort: try direct panoid parameter
     pano_match = re.search(r"[?&]panoid=([^&]+)", haystack)
     if pano_match:
-        return pano_match.group(1), None, None, fov, mode_token, date
+        return pano_match.group(1), yaw_from_path, pitch_from_path, fov, mode_token, date
 
-    return None, None, None, fov, mode_token, date
+    return None, yaw_from_path, pitch_from_path, fov, mode_token, date
 
 
 def validate_maps_url(url: str) -> bool:
