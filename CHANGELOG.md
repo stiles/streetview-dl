@@ -5,6 +5,23 @@ All notable changes to streetview-dl will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.1] - 2025-02-08
+
+### Fixed
+- **FOV cropping not applying**: Fix `--fov` cropping by extracting heading/pitch from Maps URL path tokens (`...h`/`...t`) so horizontal crop applies when `h` is present
+- Root cause: `url_yaw` was often None because only thumbnail query params were parsed, not URL path tokens
+- Behavior: For a medium pano (8192 px), `--fov 90` now properly yields ~2048 px width when URL includes heading
+
+### Changed
+- Enhanced URL parsing regex to allow end-of-segment markers (not just comma)
+- Path-based heading (`...h`) and pitch (`...t`) now serve as fallbacks when thumbnail query lacks yaw/pitch
+- Updated EXAMPLES.md to clarify `h`/`t` requirement and included those tokens in all FOV example URLs
+
+### Technical Details
+- Modified `extract_from_maps_url()` in `metadata.py` to parse heading/yaw and pitch/tilt tokens from URL path
+- Regex patterns now match `(-?\d+(?:\.\d+)?)h(?:,|/|$)` and `(-?\d+(?:\.\d+)?)t(?:,|/|$)`
+- Added test coverage for path-based yaw/pitch extraction
+
 ## [0.6.0] - 2025-10-21
 
 ### Added
