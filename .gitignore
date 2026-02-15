@@ -238,3 +238,6 @@ __marimo__/
 
 # Marketing materials
 MARKETING.md
+
+# Generated examples from generate_examples.py
+examples_output/

@@ -250,7 +250,7 @@ streetview-dl --fov 200 --clip right --crop-bottom 0.8 "https://maps.url..."
 ### Batch processing
 ```bash
 # Create urls.txt with one URL per line, then:
-streetview-dl --batch batch_urls.txt --output-dir ./example_panoramas/
+streetview-dl --batch urls.txt --output-dir ./panoramas/
 ```
 
 ### Metadata extraction
