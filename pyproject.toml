@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "streetview-dl"
 version = "0.7.0"
-description = "Download high-resolution Google Street View panoramas from the command line"
+description = "Discover and download high-resolution Google Street View panoramas by URL or coordinates. Query areas, build grids, crop and filter images with parallel batch downloads."
 readme = "README.md"
 license = {text = "MIT"}
 authors = [

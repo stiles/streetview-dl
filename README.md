@@ -1,7 +1,7 @@
 # streetview-dl
 [![CI](https://github.com/stiles/streetview-dl/actions/workflows/ci.yml/badge.svg)](https://github.com/stiles/streetview-dl/actions/workflows/ci.yml)
 
-Extract, analyze, and download Google Street View panoramas at scale.
+Discover and download high-resolution Google Street View panoramas by URL or coordinates. Query areas, build grids, crop and filter images with parallel batch downloads.
 
 ## What it does
 
