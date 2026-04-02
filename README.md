@@ -1,7 +1,7 @@
 # streetview-dl
 [![CI](https://github.com/stiles/streetview-dl/actions/workflows/ci.yml/badge.svg)](https://github.com/stiles/streetview-dl/actions/workflows/ci.yml)
 
-Download high-resolution Google Street View panoramas from the command line.
+Extract, analyze, and download Google Street View panoramas at scale.
 
 ## What it does
 
@@ -29,6 +29,8 @@ pip install -e .
 
 ## Quick start
 
+### Download from URL
+
 ```bash
 # Basic download
 streetview-dl "https://www.google.com/maps/@33.99,-118.40,3a,75y,148h,98t/..."
@@ -42,6 +44,33 @@ streetview-dl --quality medium "https://maps.url..."
 # Black and white filter
 streetview-dl --filter bw "https://maps.url..."
 ```
+
+### Query by coordinates
+
+Discover Street View panoramas at any location without needing a URL:
+
+```bash
+# Find nearest panorama (auto-generates URL file for downloads)
+streetview-dl query --lat 34.05 --lng -118.25
+
+# Search wider area with multiple results
+streetview-dl query --lat 34.05 --lng -118.25 --radius 100 --max-results 10
+
+# Batch download using auto-generated URL file
+streetview-dl --batch streetview_urls_34.05_-118.25.txt --output-dir ./panoramas/
+
+# JSON output for custom scripting (no URL file created)
+streetview-dl query --lat 34.05 --lng -118.25 --json
+```
+
+**Real example - Alcatraz Island (27 acres):**
+```bash
+# Comprehensive discovery with deep traversal
+streetview-dl query --lat 37.8267028 --lng -122.4242763 --radius 100 --max-results 150 --depth 5
+```
+Discovers 150 panoramas from 2013-2014 within 28-209m of center in ~23 seconds. Automatically creates `alcatraz_urls.txt` for batch downloading.
+
+This unlocks grid-based sampling, automation workflows, and programmatic Street View discovery.
 
 ## Understanding Street View URLs
 
@@ -123,6 +152,17 @@ streetview-dl --configure
 --format jpg|png|webp        # Image format (default: jpg)
 --jpeg-quality 85            # JPEG compression (1-100)
 --max-width 8192             # Resize if larger
+```
+
+### Coordinate query options
+```bash
+--lat LATITUDE               # Latitude (required for query command)
+--lng LONGITUDE              # Longitude (required for query command)
+--radius METERS              # Search radius in meters (default: 50)
+--max-results N              # Maximum panoramas to return (default: 5)
+--depth 1-5                  # Link traversal depth (auto-tuned if not set)
+--max-panos N                # Maximum API calls during discovery (default: 200)
+--json                       # Output as JSON (query command only)
 ```
 
 ### Image processing
@@ -261,6 +301,71 @@ streetview-dl --metadata-only "https://maps.url..."
 # Save both image and metadata
 streetview-dl --metadata "https://maps.url..."
 ```
+
+### Query by coordinates
+
+The `query` command discovers Street View panoramas at any location using lat/lng coordinates. This enables grid-based sampling, automation, and discovery without requiring URLs.
+
+```bash
+# Find nearest panorama (auto-generates URL file)
+streetview-dl query --lat 34.05 --lng -118.25
+
+# Search wider area with more results
+streetview-dl query --lat 34.05 --lng -118.25 --radius 100 --max-results 10
+
+# Download using auto-generated URL file
+streetview-dl --batch streetview_urls_34.05_-118.25.txt --output-dir ./panoramas/
+
+# JSON output for custom scripting (no URL file created)
+streetview-dl query --lat 34.05 --lng -118.25 --json
+```
+
+**Output includes:**
+- `pano_id` - Unique panorama identifier
+- `date` - Capture date (YYYY-MM format)
+- `lat`, `lng` - Actual panorama coordinates
+- `distance_m` - Distance from query point in meters
+- `heading` - Compass direction in degrees
+- Auto-generated URL file for batch downloads (unless `--json` is used)
+
+**Options:**
+- `--radius` - Search radius in meters (default: 50)
+- `--max-results` - Maximum panoramas to return (default: 5)
+- `--depth` - Link traversal depth, 1-5 (auto if not set)
+- `--max-panos` - Maximum API calls during discovery (default: 200)
+- `--json` - Output as JSON for automation
+- `--verbose` - Show detailed progress
+
+**Use cases:**
+- Create systematic grids for area coverage
+- Sample panoramas along routes or boundaries
+- Automate Street View data collection
+- Build datasets for computer vision or mapping projects
+- Find coverage in specific areas programmatically
+
+**Streamlined workflow:**
+```bash
+# Query generates both JSON and a ready-to-use URL file
+streetview-dl query --lat 34.05 --lng -118.25 --max-results 10
+
+# Batch download using the auto-generated URL file
+streetview-dl --batch streetview_urls_34.05_-118.25.txt --output-dir ./panoramas/
+```
+
+**JSON output for scripting:**
+```bash
+# Query with JSON output (no URL file created)
+streetview-dl query --lat 34.05 --lng -118.25 --max-results 10 --json > panoramas.json
+
+# Extract URLs and download
+cat panoramas.json | jq -r '.panoramas[] | 
+  "https://www.google.com/maps/@\(.lat),\(.lng),3a,75y,0h,90t/data=!3m7!1e1!3m5!1s\(.pano_id)!"' > urls.txt
+
+streetview-dl --batch urls.txt --output-dir ./panoramas/
+```
+
+**Python examples:**
+See `examples/query_example.py` for a simple query → download workflow, `examples/grid_coverage.py` for systematic grid-based area sampling, and `examples/alcatraz_example.py` for a real-world case study.
 
 #### Available metadata fields
 The `--metadata` and `--metadata-only` flags extract comprehensive information from Google's Street View Tile API:

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "streetview-dl"
-version = "0.6.1"
+version = "0.7.0"
 description = "Download high-resolution Google Street View panoramas from the command line"
 readme = "README.md"
 license = {text = "MIT"}
@@ -59,7 +59,7 @@ Changelog = "https://github.com/yourusername/streetview-dl/blob/main/CHANGELOG.m
 "Bug Tracker" = "https://github.com/yourusername/streetview-dl/issues"
 
 [project.scripts]
-streetview-dl = "streetview_dl.cli:main"
+streetview-dl = "streetview_dl.cli:cli_dispatcher"
 
 [tool.setuptools.packages.find]
 where = ["."]

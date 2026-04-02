@@ -749,6 +749,10 @@ def process_batch(
                 no_crop=False,  # already processed in main()
                 metadata=metadata,
                 metadata_only=metadata_only,
+                historical=False,
+                historical_download=False,
+                historical_max_depth=7,
+                historical_max_panoramas=200,
                 no_xmp=no_xmp,
                 timeout=timeout,
                 retries=retries,
@@ -774,5 +778,393 @@ def process_batch(
         console.print(f"[red]✗ Failed: {error_count}[/red]")
 
 
-if __name__ == "__main__":
+@click.command()
+@click.option("--lat", type=float, required=True, help="Latitude")
+@click.option("--lng", type=float, required=True, help="Longitude")
+@click.option("--radius", type=int, default=50, help="Search radius in meters (default: 50)")
+@click.option("--max-results", type=int, default=5, help="Maximum number of panoramas to return (default: 5)")
+@click.option("--depth", type=click.IntRange(1, 5), default=None, help="Link traversal depth (1-5, auto if not set)")
+@click.option("--max-panos", type=int, default=200, help="Maximum panoramas to check during discovery (default: 200)")
+@click.option("--api-key", help="Google Maps API key")
+@click.option(
+    "--timeout", type=int, default=30, help="Request timeout in seconds"
+)
+@click.option(
+    "--retries",
+    type=click.IntRange(0, 10),
+    default=3,
+    envvar="STREETVIEW_DL_RETRIES",
+    show_envvar=True,
+    help="HTTP retry attempts",
+)
+@click.option(
+    "--backoff", type=float, default=0.5, help="Retry backoff factor (seconds)"
+)
+@click.option("--verbose", "-v", is_flag=True, help="Verbose output")
+@click.option(
+    "--accent-color",
+    type=click.Choice(["cyan", "yellow"]),
+    default="cyan",
+    help="Accent color for status text",
+)
+@click.option("--json", "output_json", is_flag=True, help="Output as JSON")
+def query_command(
+    lat: float,
+    lng: float,
+    radius: int,
+    max_results: int,
+    depth: Optional[int],
+    max_panos: int,
+    api_key: Optional[str],
+    timeout: int,
+    retries: int,
+    backoff: float,
+    verbose: bool,
+    accent_color: str,
+    output_json: bool,
+) -> None:
+    """Query Street View panoramas by coordinates.
+    
+    Discover nearby panoramas at a given location. Returns pano_id, 
+    date, coordinates, and distance for each candidate.
+    
+    Examples:
+    
+        # Find nearest panorama
+        streetview-dl query --lat 34.05 --lng -118.25
+        
+        # Search wider area with multiple results
+        streetview-dl query --lat 34.05 --lng -118.25 --radius 100 --max-results 10
+        
+        # JSON output for automation
+        streetview-dl query --lat 34.05 --lng -118.25 --json
+    """
+    import json
+    from math import radians, sin, cos, sqrt, atan2
+    from collections import deque
+    
+    accent = resolve_accent(accent_color)
+    
+    # Get API key
+    try:
+        api_key = get_api_key(api_key)
+        if not validate_api_key(api_key):
+            raise click.ClickException("Invalid API key format")
+    except Exception as e:
+        raise click.ClickException(f"API key error: {e}")
+    
+    # Initialize downloader
+    downloader = StreetViewDownloader(
+        api_key=api_key, timeout=timeout, retries=retries, backoff=backoff
+    )
+    
+    if not output_json:
+        console.print(f"[{accent}]Searching for panoramas near ({lat}, {lng})...[/{accent}]")
+        if verbose:
+            console.print(f"[dim]Search radius: {radius}m, max results: {max_results}[/dim]")
+    
+    # Helper function to calculate distance between two lat/lng points
+    def haversine_distance(lat1: float, lng1: float, lat2: float, lng2: float) -> float:
+        """Calculate distance in meters between two lat/lng points."""
+        R = 6371000  # Earth radius in meters
+        
+        lat1_rad, lng1_rad = radians(lat1), radians(lng1)
+        lat2_rad, lng2_rad = radians(lat2), radians(lng2)
+        
+        dlat = lat2_rad - lat1_rad
+        dlng = lng2_rad - lng1_rad
+        
+        a = sin(dlat / 2) ** 2 + cos(lat1_rad) * cos(lat2_rad) * sin(dlng / 2) ** 2
+        c = 2 * atan2(sqrt(a), sqrt(1 - a))
+        
+        return R * c
+    
+    # Discover panoramas using breadth-first search with link traversal
+    panoramas_by_id = {}
+    checked_panos = set()
+    
+    # Queue for BFS: (pano_id, depth)
+    from collections import deque
+    to_check = deque()
+    
+    # Maximum depth to traverse (deeper = more panoramas but more API calls)
+    # Auto-tune based on max_results if not specified
+    if depth is None:
+        if max_results <= 5:
+            max_depth = 2
+        elif max_results <= 20:
+            max_depth = 3
+        else:
+            max_depth = 4
+    else:
+        max_depth = depth
+    
+    try:
+        # Strategy 1: Multiple radius searches at center point
+        search_radii = [radius]
+        if max_results > 1:
+            search_radii.extend([radius * 2, radius * 3, radius * 5])
+        
+        if not output_json and verbose:
+            console.print(f"[dim]Trying search radii: {search_radii}[/dim]")
+        
+        for search_radius in search_radii:
+            try:
+                metadata = downloader.get_metadata(lat=lat, lng=lng, radius=search_radius)
+                
+                if metadata.pano_id not in checked_panos:
+                    checked_panos.add(metadata.pano_id)
+                    
+                    # Calculate distance from query point
+                    if metadata.lat and metadata.lng:
+                        distance = haversine_distance(lat, lng, metadata.lat, metadata.lng)
+                    else:
+                        distance = None
+                    
+                    panoramas_by_id[metadata.pano_id] = {
+                        'pano_id': metadata.pano_id,
+                        'date': metadata.date,
+                        'lat': metadata.lat,
+                        'lng': metadata.lng,
+                        'distance_m': round(distance, 1) if distance else None,
+                        'heading': metadata.heading,
+                        'copyright': metadata.copyright_info,
+                    }
+                    
+                    # Add to BFS queue for link traversal
+                    to_check.append((metadata.pano_id, 0))
+                    
+                    if verbose and not output_json:
+                        console.print(f"  Found seed pano: {metadata.pano_id} at {search_radius}m radius")
+                
+            except Exception as e:
+                if verbose and not output_json:
+                    console.print(f"[yellow]Warning: Search at radius {search_radius}m failed: {e}[/yellow]")
+                continue
+        
+        # Strategy 2: Grid-based searches to find disconnected clusters
+        # This helps discover separate pano networks that aren't linked
+        if max_results > 10:
+            import math
+            
+            # Create a grid of search points within the search area
+            grid_spacing = radius / 2  # Half the radius for overlap
+            grid_points = []
+            
+            # Calculate number of grid cells needed
+            cells = 3 if max_results < 50 else 5  # 3x3 or 5x5 grid
+            
+            for i in range(-cells // 2, cells // 2 + 1):
+                for j in range(-cells // 2, cells // 2 + 1):
+                    if i == 0 and j == 0:
+                        continue  # Skip center, already searched
+                    
+                    # Convert meters to degrees (approximate)
+                    lat_offset = (i * grid_spacing) / 111000  # ~111km per degree latitude
+                    lng_offset = (j * grid_spacing) / (111000 * math.cos(math.radians(lat)))  # Adjust for latitude
+                    
+                    grid_points.append((lat + lat_offset, lng + lng_offset))
+            
+            if not output_json and verbose:
+                console.print(f"[dim]Searching {len(grid_points)} grid points...[/dim]")
+            
+            for grid_lat, grid_lng in grid_points:
+                if len(checked_panos) >= max_panos:
+                    break
+                
+                try:
+                    metadata = downloader.get_metadata(lat=grid_lat, lng=grid_lng, radius=radius // 2)
+                    
+                    if metadata.pano_id not in checked_panos:
+                        checked_panos.add(metadata.pano_id)
+                        
+                        if metadata.lat and metadata.lng:
+                            distance = haversine_distance(lat, lng, metadata.lat, metadata.lng)
+                        else:
+                            distance = None
+                        
+                        panoramas_by_id[metadata.pano_id] = {
+                            'pano_id': metadata.pano_id,
+                            'date': metadata.date,
+                            'lat': metadata.lat,
+                            'lng': metadata.lng,
+                            'distance_m': round(distance, 1) if distance else None,
+                            'heading': metadata.heading,
+                            'copyright': metadata.copyright_info,
+                        }
+                        
+                        # Add to BFS queue
+                        to_check.append((metadata.pano_id, 0))
+                        
+                        if verbose and not output_json:
+                            dist_str = f"{distance:.1f}m" if distance else "?"
+                            console.print(f"  Found grid pano: {metadata.pano_id} ({dist_str})")
+                    
+                except Exception:
+                    continue
+        
+        # Breadth-first search through linked panoramas
+        if not output_json and verbose:
+            console.print(f"[dim]Traversing links up to depth {max_depth}...[/dim]")
+        
+        while to_check and len(panoramas_by_id) < max_results and len(checked_panos) < max_panos:
+            pano_id, depth = to_check.popleft()
+            
+            # Stop if we've gone too deep
+            if depth >= max_depth:
+                continue
+            
+            try:
+                metadata = downloader.get_metadata(pano_id=pano_id)
+                
+                # Explore linked panoramas
+                if hasattr(metadata, 'links') and metadata.links:
+                    for link in metadata.links:
+                        if len(panoramas_by_id) >= max_results:
+                            break
+                        
+                        linked_pano_id = link.get('panoId')
+                        if linked_pano_id and linked_pano_id not in checked_panos:
+                            checked_panos.add(linked_pano_id)
+                            
+                            try:
+                                linked_metadata = downloader.get_metadata(pano_id=linked_pano_id)
+                                
+                                if linked_metadata.lat and linked_metadata.lng:
+                                    distance = haversine_distance(
+                                        lat, lng, linked_metadata.lat, linked_metadata.lng
+                                    )
+                                else:
+                                    distance = None
+                                
+                                panoramas_by_id[linked_pano_id] = {
+                                    'pano_id': linked_pano_id,
+                                    'date': linked_metadata.date,
+                                    'lat': linked_metadata.lat,
+                                    'lng': linked_metadata.lng,
+                                    'distance_m': round(distance, 1) if distance else None,
+                                    'heading': linked_metadata.heading,
+                                    'copyright': linked_metadata.copyright_info,
+                                }
+                                
+                                # Add to queue for further traversal
+                                to_check.append((linked_pano_id, depth + 1))
+                                
+                                if verbose and not output_json:
+                                    console.print(f"  Found linked pano: {linked_pano_id} (depth {depth + 1})")
+                                    
+                            except Exception:
+                                continue
+                                
+            except Exception:
+                continue
+        
+        if verbose and not output_json:
+            console.print(f"[dim]Checked {len(checked_panos)} total panoramas[/dim]")
+        
+    except Exception as e:
+        raise click.ClickException(f"Query failed: {e}")
+    
+    if not panoramas_by_id:
+        if output_json:
+            click.echo(json.dumps({"error": "No panoramas found"}, indent=2))
+        else:
+            console.print("[yellow]No panoramas found at this location[/yellow]")
+        sys.exit(1)
+    
+    # Sort by distance and limit results
+    results = sorted(
+        panoramas_by_id.values(),
+        key=lambda x: x['distance_m'] if x['distance_m'] is not None else float('inf')
+    )[:max_results]
+    
+    # Output results
+    if output_json:
+        output_data = {
+            'query': {'lat': lat, 'lng': lng, 'radius': radius},
+            'count': len(results),
+            'panoramas': results
+        }
+        click.echo(json.dumps(output_data, indent=2))
+    else:
+        console.print(f"\n[bold]Found {len(results)} panorama(s):[/bold]\n")
+        
+        for i, pano in enumerate(results, 1):
+            distance_str = f"{pano['distance_m']:.1f}m" if pano['distance_m'] is not None else "unknown"
+            date_str = pano['date'] if pano['date'] else "unknown"
+            coords_str = f"({pano['lat']:.6f}, {pano['lng']:.6f})" if pano['lat'] and pano['lng'] else "unknown"
+            
+            console.print(f"[bold]{i}.[/bold] {pano['pano_id']}")
+            console.print(f"   [dim]Date:[/dim] {date_str}")
+            console.print(f"   [dim]Distance:[/dim] {distance_str}")
+            console.print(f"   [dim]Coordinates:[/dim] {coords_str}")
+            
+            if verbose and pano.get('heading') is not None:
+                console.print(f"   [dim]Heading:[/dim] {pano['heading']:.1f}°")
+            if verbose and pano.get('copyright'):
+                console.print(f"   [dim]Copyright:[/dim] {pano['copyright']}")
+            
+            console.print()
+        
+        # Generate URL list for batch downloading
+        console.print(f"[{accent}]URLs for batch download:[/{accent}]")
+        url_list = []
+        for pano in results:
+            if pano['lat'] and pano['lng']:
+                # Use format compatible with the download command parser
+                # Pattern: !3m7!1e1!3m5!1s{pano_id}! (trailing ! is required)
+                url = (
+                    f"https://www.google.com/maps/@{pano['lat']},{pano['lng']},"
+                    f"3a,75y,0h,90t/data=!3m7!1e1!3m5!1s{pano['pano_id']}!"
+                )
+                url_list.append(url)
+
+        
+        # Save URL list to file
+        url_filename = f"streetview_urls_{lat}_{lng}.txt"
+        with open(url_filename, 'w') as f:
+            f.write('\n'.join(url_list))
+        
+        console.print(f"  Saved {len(url_list)} URLs to: [bold]{url_filename}[/bold]")
+        console.print(f"\n[{accent}]Batch download all panoramas:[/{accent}]")
+        console.print(f"  streetview-dl --batch {url_filename} --output-dir ./panoramas/")
+        
+        # Show example for downloading single panorama
+        if results:
+            console.print(f"\n[{accent}]Download nearest panorama:[/{accent}]")
+            nearest = results[0]
+            console.print(f"  streetview-dl --output nearest.jpg \"{url_list[0]}\"")
+
+
+
+def cli_dispatcher():
+    """Route to appropriate command based on first argument."""
+    import sys
+    
+    # Check if first argument is 'query'
+    if len(sys.argv) > 1:
+        cmd = sys.argv[1]
+        
+        if cmd == 'query':
+            # Remove 'query' from argv and call query_command
+            sys.argv.pop(1)
+            query_command()
+            return
+        elif cmd == 'help':
+            # Show combined help overview
+            click.echo("streetview-dl - Download high-resolution Google Street View panoramas\n")
+            click.echo("Usage:")
+            click.echo("  streetview-dl [OPTIONS] URL              Download a panorama from URL")
+            click.echo("  streetview-dl query [OPTIONS]            Query panoramas by coordinates\n")
+            click.echo("Commands:")
+            click.echo("  streetview-dl --help                     Show download command help")
+            click.echo("  streetview-dl query --help               Show query command help")
+            click.echo("  streetview-dl --version                  Show version")
+            return
+    
+    # Call main download command
     main()
+
+
+if __name__ == "__main__":
+    cli_dispatcher()

@@ -56,6 +56,10 @@ secret_yeti_pictures/
 # BIGFOOT
 bigfoot_pictures/
 
+web
+
+.PROJECT.md
+
 # PyInstaller
 #  Usually these files are written by a python script from a template
 #  before PyInstaller builds the exe, so as to inject date/other infos into it.
@@ -241,3 +245,12 @@ MARKETING.md
 
 # Generated examples from generate_examples.py
 examples_output/
+
+# Query command output files
+streetview_urls_*.txt
+*_coverage.json
+*_urls.txt
+example_urls.txt
+grid_urls.txt
+alcatraz_urls.txt
+query_example_*.jpg

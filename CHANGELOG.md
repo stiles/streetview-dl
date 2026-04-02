@@ -5,6 +5,46 @@ All notable changes to streetview-dl will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.0] - 2026-04-02
+
+### Added
+- **Coordinate query command**: New `query` subcommand to discover panoramas by lat/lng
+- **Automatic URL generation**: Query command creates ready-to-use URL files for batch downloads
+- **Grid-based sampling**: Systematic search grid to find disconnected clusters
+- **Multi-strategy discovery**: Progressive radius, grid search, and deep link traversal
+- **Distance calculation**: Returns distance in meters from query point to each panorama
+- **JSON output mode**: `--json` flag for scripting and workflow automation
+- **Advanced search parameters**: `--depth`, `--max-panos`, `--radius`, `--max-results` options
+- **Auto-tuned depth**: Automatically adjusts traversal depth based on max-results
+
+### Technical Details
+- Added `query` command with three discovery strategies:
+  1. Progressive radius search (1x, 2x, 3x, 5x)
+  2. Grid-based search at multiple offset points
+  3. Breadth-first link traversal up to depth 5
+- Automatic generation of `streetview_urls_{lat}_{lng}.txt` files with valid URLs
+- Uses haversine formula for accurate distance calculations  
+- CLI dispatcher routes between download and query commands
+- Results sorted by distance from query point
+- Comprehensive test coverage with 6 new query tests
+
+### Performance
+- Alcatraz Island (27 acres): Discovers 150 panoramas in ~23 seconds
+- Default settings (depth=auto, max-panos=200): ~20-40 API calls
+- Aggressive settings (depth=5, max-panos=1000): ~100-200 API calls
+
+### Use Cases
+- Create grids for systematic area coverage
+- Sample panoramas along routes or boundaries  
+- Automate Street View data collection workflows
+- Build datasets for computer vision or mapping
+- Discover coverage programmatically without manual URL collection
+
+### Examples
+- `examples/alcatraz_example.py` - Alcatraz Island coverage discovery
+- `examples/grid_coverage.py` - Grid-based area sampling
+- `examples/query_example.py` - Simple query → download workflow
+
 ## [0.6.1] - 2025-02-08
 
 ### Fixed

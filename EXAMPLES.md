@@ -374,6 +374,273 @@ The `generate_examples.py` script creates files with descriptive names:
 
 ```bash
 streetview-dl --help
+streetview-dl query --help
 streetview-dl --version
 streetview-dl --verbose "https://maps.url..."  # Detailed output
 ```
+
+## Coordinate Query Examples
+
+The `query` command discovers Street View panoramas at any location using coordinates, enabling automation and grid-based sampling.
+
+### Basic Location Query
+
+```bash
+streetview-dl query --lat 34.05 --lng -118.25
+```
+
+**Output:**
+```
+Searching for panoramas near (34.05, -118.25)...
+
+Found 3 panorama(s):
+
+1. _3y4YfZwv0K7mGHOYvCB6A
+   Date: 2025-10
+   Distance: 5.2m
+   Coordinates: (34.049958, -118.250025)
+
+2. TVwZqqQWoyxEhc1W3cmeUg
+   Date: 2025-10
+   Distance: 10.0m
+   Coordinates: (34.050012, -118.250108)
+
+3. RJ3Y_aMsHHX9WozS5xLBJA
+   Date: 2025-10
+   Distance: 11.9m
+   Coordinates: (34.049904, -118.249943)
+
+Download a panorama using:
+  streetview-dl "https://www.google.com/maps/@34.049958,-118.250025,..."
+```
+
+### Wider Search Area
+
+```bash
+streetview-dl query --lat 40.7589 --lng -73.9851 --radius 100 --max-results 10
+```
+
+Search parameters:
+- `--radius 100` - Search within 100 meters
+- `--max-results 10` - Return up to 10 panoramas
+- Results sorted by distance from query point
+
+### JSON Output for Automation
+
+```bash
+streetview-dl query --lat 34.05 --lng -118.25 --json
+```
+
+**Output:**
+```json
+{
+  "query": {
+    "lat": 34.05,
+    "lng": -118.25,
+    "radius": 50
+  },
+  "count": 3,
+  "panoramas": [
+    {
+      "pano_id": "_3y4YfZwv0K7mGHOYvCB6A",
+      "date": "2025-10",
+      "lat": 34.049958,
+      "lng": -118.250025,
+      "distance_m": 5.2,
+      "heading": 127.9,
+      "copyright": "From the Owner, Photo by: Google"
+    }
+  ]
+}
+```
+
+### Complete Automation Workflow
+
+**Streamlined approach (automatic URL file):**
+
+```bash
+# Query generates both human-readable output and URL file
+streetview-dl query --lat 34.05 --lng -118.25 --max-results 10
+
+# Download using the auto-generated URL file
+streetview-dl --batch streetview_urls_34.05_-118.25.txt --output-dir ./panoramas/ --quality medium
+```
+
+**Advanced workflow with JSON and jq:**
+
+```bash
+# 1. Query for panoramas near a location
+streetview-dl query --lat 34.05 --lng -118.25 --max-results 10 --json > results.json
+
+# 2. Extract pano IDs and coordinates (using jq)
+jq -r '.panoramas[] | 
+  "https://www.google.com/maps/@\(.lat),\(.lng),3a,75y,0h,90t/data=!3m7!1e1!3m5!1s\(.pano_id)!"' \
+  results.json > urls.txt
+
+# 3. Batch download all panoramas
+streetview-dl --batch urls.txt --output-dir ./panoramas/ --quality medium
+
+# 4. Or download just the nearest one
+NEAREST_URL=$(jq -r '.panoramas[0] | 
+  "https://www.google.com/maps/@\(.lat),\(.lng),3a,75y,0h,90t/data=!3m7!1e1!3m5!1s\(.pano_id)!"' \
+  results.json)
+streetview-dl "$NEAREST_URL" --output nearest.jpg
+```
+
+### Python Integration Example
+
+```python
+import json
+import subprocess
+
+# Query for panoramas
+result = subprocess.run(
+    ["streetview-dl", "query",
+     "--lat", "34.05",
+     "--lng", "-118.25", 
+     "--radius", "100",
+     "--max-results", "10",
+     "--json"],
+    capture_output=True,
+    text=True
+)
+
+data = json.loads(result.stdout)
+
+# Get nearest panorama
+nearest = data['panoramas'][0]
+print(f"Nearest panorama: {nearest['pano_id']}")
+print(f"Distance: {nearest['distance_m']}m")
+print(f"Date: {nearest['date']}")
+
+# Build URL and download
+url = (f"https://www.google.com/maps/@{nearest['lat']},{nearest['lng']},"
+       f"3a,75y,0h,90t/data=!3m7!1e1!3m5!1s{nearest['pano_id']}")
+
+# Download the panorama
+subprocess.run([
+    "streetview-dl",
+    "--quality", "medium",
+    "--output", f"pano_{nearest['pano_id']}.jpg",
+    url
+])
+```
+
+### Grid Sampling Example
+
+Create a grid of points and query each one:
+
+```python
+import json
+import subprocess
+
+# Define grid parameters
+center_lat, center_lng = 34.05, -118.25
+grid_size = 5  # 5x5 grid
+spacing = 0.001  # ~100m spacing
+
+panoramas = []
+
+# Query each grid point
+for i in range(grid_size):
+    for j in range(grid_size):
+        lat = center_lat + (i - grid_size // 2) * spacing
+        lng = center_lng + (j - grid_size // 2) * spacing
+        
+        result = subprocess.run(
+            ["streetview-dl", "query",
+             "--lat", str(lat),
+             "--lng", str(lng),
+             "--radius", "50",
+             "--max-results", "1",
+             "--json"],
+            capture_output=True,
+            text=True
+        )
+        
+        if result.returncode == 0:
+            data = json.loads(result.stdout)
+            if data['panoramas']:
+                panoramas.append(data['panoramas'][0])
+
+print(f"Found {len(panoramas)} unique panoramas in grid")
+
+# Save grid results
+with open('grid_panoramas.json', 'w') as f:
+    json.dump(panoramas, f, indent=2)
+```
+
+### Use Cases
+
+**Research and Analysis:**
+- Create systematic coverage grids for urban analysis
+- Sample panoramas along transportation routes
+- Build datasets for computer vision training
+- Document changes in specific areas over time
+
+**Automation:**
+- Discover panoramas programmatically without manual URL collection
+- Build pipelines for large-scale Street View data extraction
+- Integrate with GIS workflows and mapping applications
+- Create reproducible data collection protocols
+
+## Real-World Example: Alcatraz Island
+
+Discovering Street View coverage on Alcatraz Island (27 acres) demonstrates both the power and limitations of coordinate-based discovery.
+
+```bash
+# Comprehensive search of small bounded area
+streetview-dl query --lat 37.8267028 --lng -122.4242763 --radius 100 --max-results 150 --depth 5
+```
+
+**Results:**
+- **150 panoramas discovered** in 23 seconds
+- Coverage from **November 2013** and **July 2014**
+- Distance range: 28m to 209m from center
+- All from Google Trekker coverage of the island
+
+**Coverage includes:**
+- Main cellhouse and corridors
+- Exercise yard and recreation areas
+- Perimeter walkways and guard towers
+- Multiple viewing angles at each location
+
+**Example output:**
+```
+Found 150 panorama(s):
+
+1. STnjKylFJk1ugwKxBWPH1w
+   Date: 2013-11
+   Distance: 28.1m
+   Coordinates: (37.826866, -122.424033)
+   Heading: 308.8°
+
+2. CAoSFkNJSE0wb2dLRUlDQWdJQzYxb1dDREE.
+   Date: 2014-07  
+   Distance: 28.3m
+   Coordinates: (37.826833, -122.424000)
+   
+... (148 more)
+```
+
+**Discovery limitations:**
+Google Street View networks can have disconnected clusters. The query found 150 panoramas in the main connected network, but some isolated areas require querying their specific coordinates:
+
+```bash
+# If you know specific coordinates, query them directly
+streetview-dl query --lat 37.826662 --lng -122.422901 --radius 50
+# Finds 5 more in eastern cellblock area
+```
+
+**Recommended settings for small areas:**
+- `--radius 100` - Good for 20-50 acre areas
+- `--max-results 100-200` - Capture multiple clusters
+- `--depth 5` - Deep traversal for maximum coverage
+- `--max-panos 1000` - Allow thorough exploration
+
+**Automated workflow:**
+See `examples/alcatraz_example.py` for a complete Python script that:
+1. Queries for Alcatraz panoramas
+2. Analyzes coverage by date and distance
+3. Saves results to JSON
+4. Provides batch download instructions
