@@ -174,6 +174,10 @@ def determine_concurrency(quality: str, requested: int) -> int:
 @click.option(
     "--backoff", type=float, default=0.5, help="Retry backoff factor (seconds)"
 )
+@click.option("--lat", type=float, help="Latitude (use with --lng for coordinate download)")
+@click.option("--lng", type=float, help="Longitude (use with --lat for coordinate download)")
+@click.option("--quick", "-q", help="Quick download by coordinates 'lat,lng' (e.g. 42.5,-94.1)")
+@click.option("--radius", type=int, default=50, help="Search radius in meters (default: 50)")
 @click.option(
     "--configure", is_flag=True, help="Configure API key interactively"
 )
@@ -226,6 +230,10 @@ def main(
     verbose: bool,
     accent_color: str,
     concurrency: int,
+    lat: Optional[float] = None,
+    lng: Optional[float] = None,
+    quick: Optional[str] = None,
+    radius: int = 50,
 ) -> None:
     """Download high-resolution Google Street View panoramas."""
 
@@ -270,15 +278,32 @@ def main(
         )
         return
 
-    # Single URL processing
-    if not url:
-        click.echo("Error: URL required (or use --batch for multiple URLs)")
-        click.echo("Try 'streetview-dl --help' for more information.")
+    # Handle --quick option (parses lat,lng string)
+    if quick:
+        try:
+            if "," not in quick:
+                raise click.ClickException("Invalid --quick format. Use 'lat,lng' (e.g., --quick 42.5,-94.1)")
+            q_lat, q_lng = map(str.strip, quick.split(","))
+            lat = float(q_lat)
+            lng = float(q_lng)
+        except ValueError:
+            raise click.ClickException("Invalid coordinates in --quick. Must be numeric 'lat,lng'")
+
+    # Single URL or coordinate processing
+    if not url and (lat is None or lng is None):
+        click.echo("Error: URL required (or use --quick 'lat,lng', or --batch for multiple URLs)")
+        click.echo("\nTo DISCOVER multiple panoramas in an area, use the 'query' command:")
+        click.echo("  streetview-dl query --lat 42.5 --lng -94.1")
+        click.echo("\nTo QUICKLY download the nearest panorama, use --quick:")
+        click.echo("  streetview-dl --quick 42.5,-94.1")
         sys.exit(1)
 
     try:
-        process_single_url(
+        process_location(
             url=url,
+            lat=lat,
+            lng=lng,
+            radius=radius,
             api_key=api_key,
             output=output,
             quality=quality,
@@ -319,8 +344,11 @@ def main(
         sys.exit(1)
 
 
-def process_single_url(
-    url: str,
+def process_location(
+    url: Optional[str],
+    lat: Optional[float],
+    lng: Optional[float],
+    radius: int,
     api_key: Optional[str],
     output: Optional[str],
     quality: str,
@@ -349,17 +377,30 @@ def process_single_url(
     accent_color: str,
     concurrency: int,
 ) -> None:
-    """Process a single URL."""
+    """Process a panorama by URL or coordinates."""
     accent = resolve_accent(accent_color)
     start_time = time.perf_counter()
 
     # Handle --no-crop flag
     if no_crop:
         crop_bottom = 1.0
-
-    # Validate URL
-    if not validate_maps_url(url):
-        raise click.ClickException("Invalid Google Maps Street View URL")
+    
+    # Extract panorama info
+    if url:
+        # Validate URL
+        if not validate_maps_url(url):
+            raise click.ClickException("Invalid Google Maps Street View URL")
+        pano_id, yaw, pitch, url_fov, mode_token, url_date = extract_from_maps_url(url)
+        if not pano_id:
+            raise click.ClickException("Could not extract panorama ID from URL")
+    else:
+        # Coordinates will be used in get_metadata below
+        pano_id = None
+        yaw = None
+        pitch = None
+        url_fov = None
+        mode_token = None
+        url_date = None
 
     # Get API key
     try:
@@ -374,11 +415,20 @@ def process_single_url(
         api_key=api_key, timeout=timeout, retries=retries, backoff=backoff
     )
 
-    # Extract panorama info
-    pano_id, yaw, pitch, url_fov, mode_token, url_date = extract_from_maps_url(url)
-    if not pano_id:
-        raise click.ClickException("Could not extract panorama ID from URL")
-    
+    # Get metadata
+    with console.status(f"[bold {accent}]Fetching metadata..."):
+        if pano_id:
+            street_view_metadata = downloader.get_metadata(pano_id=pano_id)
+        else:
+            street_view_metadata = downloader.get_metadata(lat=lat, lng=lng, radius=radius)
+            pano_id = street_view_metadata.pano_id
+            
+        street_view_metadata.url_yaw = yaw
+        street_view_metadata.url_pitch = pitch
+        street_view_metadata.url_fov = url_fov  # Use URL-extracted FOV, not CLI FOV
+        street_view_metadata.url_mode_token = mode_token
+        street_view_metadata.url_date = url_date
+
     # Validate option combinations
     if clip in ("left", "right") and fov and fov < 180:
         console.print(
@@ -392,17 +442,6 @@ def process_single_url(
             console.print(f"[dim]Yaw: {yaw:.2f}°[/dim]")
         if pitch is not None:
             console.print(f"[dim]Pitch: {pitch:.2f}°[/dim]")
-
-    # Get metadata
-    with console.status(f"[bold {accent}]Fetching metadata..."):
-        street_view_metadata = downloader.get_metadata(pano_id=pano_id)
-        street_view_metadata.url_yaw = yaw
-        street_view_metadata.url_pitch = pitch
-        street_view_metadata.url_fov = url_fov  # Use URL-extracted FOV, not CLI FOV
-        street_view_metadata.url_mode_token = mode_token
-        street_view_metadata.url_date = url_date
-
-    if verbose:
         console.print(
             f"[dim]Resolution: {street_view_metadata.image_width}×{street_view_metadata.image_height}[/dim]"
         )

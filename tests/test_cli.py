@@ -158,3 +158,37 @@ def test_query_command_no_results(mock_downloader_class, mock_validate, mock_get
     
     assert result.exit_code == 1
     assert "No panoramas found" in result.output or "Query failed" in result.output
+
+
+@patch('streetview_dl.cli.get_api_key')
+@patch('streetview_dl.cli.validate_api_key')
+@patch('streetview_dl.cli.process_location')
+def test_cli_quick_option(mock_process, mock_validate, mock_get_key):
+    """Test that the --quick option correctly triggers coordinate-based download."""
+    mock_get_key.return_value = "test_api_key"
+    mock_validate.return_value = True
+    
+    runner = CliRunner()
+    result = runner.invoke(main, ["--quick", "34.05,-118.25"])
+    
+    assert result.exit_code == 0
+    # Verify process_location was called with the correct lat/lng
+    mock_process.assert_called_once()
+    kwargs = mock_process.call_args.kwargs
+    assert kwargs["lat"] == 34.05
+    assert kwargs["lng"] == -118.25
+    assert kwargs["url"] is None
+
+
+@patch('streetview_dl.cli.get_api_key')
+@patch('streetview_dl.cli.validate_api_key')
+def test_cli_quick_option_invalid_format(mock_validate, mock_get_key):
+    """Test that --quick with invalid format shows an error."""
+    mock_get_key.return_value = "test_api_key"
+    mock_validate.return_value = True
+    
+    runner = CliRunner()
+    result = runner.invoke(main, ["--quick", "34.05"])  # Missing comma
+    
+    assert result.exit_code != 0
+    assert "Invalid --quick format" in result.output
