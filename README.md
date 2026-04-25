@@ -63,6 +63,21 @@ streetview-dl --batch streetview_urls_34.05_-118.25.txt --output-dir ./panoramas
 streetview-dl query --lat 34.05 --lng -118.25 --json
 ```
 
+### Quick Download by Coordinates
+
+Download the nearest panorama to a specific spot without needing a URL. Use this when you already have a target coordinate and just want the image.
+
+```bash
+# Simplest usage (lat,lng)
+streetview-dl --quick 42.5052692,-94.1860801
+
+# Shortcut using -q
+streetview-dl -q 42.5052692,-94.1860801 --quality high --output my_spot.jpg
+
+# Using separate flags (useful for scripts)
+streetview-dl --lat 42.5052692 --lng -94.1860801
+```
+
 **Real example - Alcatraz Island (27 acres):**
 ```bash
 # Comprehensive discovery with deep traversal
@@ -302,9 +317,11 @@ streetview-dl --metadata-only "https://maps.url..."
 streetview-dl --metadata "https://maps.url..."
 ```
 
-### Query by coordinates
+### Discovery and Grid Query
 
-The `query` command discovers Street View panoramas at any location using lat/lng coordinates. This enables grid-based sampling, automation, and discovery without requiring URLs.
+The `query` command is used for **discovery and exploration**. It finds Street View panoramas at any location, allowing for grid-based sampling, automation, and browsing availability without requiring URLs.
+
+If you just want the **single closest panorama** to a point, use the `--quick` flag on the main command instead.
 
 ```bash
 # Find nearest panorama (auto-generates URL file)
