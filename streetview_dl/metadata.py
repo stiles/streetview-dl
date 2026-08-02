@@ -212,12 +212,13 @@ def validate_maps_url(url: str) -> bool:
 
 def check_panoid(data: str) -> str:
     """Check if pano ID needs to be converted to base64, as is required for many/all non-Google panos"""
-    if data.startswith("CIH"):      # Needs to be converted if the ID starts with CIHM (based on spot checks, may need a better method in the future)
+    # Needs to be converted if the ID starts with these prefixes (no definitive list, may need to expand in the future)
+    if data.startswith(("CIHM", "AF1Q", "CIAB")): 
         print("Converting pano ID to base64 format")
         return convert_panoid(data)
-    return data                     # Do not modify if no conversion is required
+    return data  # Do not modify if no conversion is required
 
 def convert_panoid(data: str) -> str:
     """Convert pano ID to base64 format"""
-    payload = f"\x08\n\x12{chr(len(data))}{data}".encode("utf-8")    # Preamble includes length of pano ID to follow
+    payload = f"\x08\n\x12{chr(len(data))}{data}".encode("utf-8")  # Preamble includes length of pano ID to follow
     return base64.b64encode(payload).decode("utf-8").replace("=", ".")
