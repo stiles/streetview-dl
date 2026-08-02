@@ -3,7 +3,7 @@
 import re
 import urllib.parse as urlparse
 from typing import Any, Dict, Optional, Tuple
-
+import base64
 from pydantic import BaseModel, Field
 
 
@@ -175,9 +175,9 @@ def extract_from_maps_url(
         return pano_id, yaw, pitch, fov, mode_token, date
 
     # Fallback: try to extract panorama ID from the !1s token pattern
-    pano_match = re.search(r"!3m5!1s([^!]+)", haystack)
+    pano_match = re.search(r"!1s([^!]+)", haystack)
     if pano_match:
-        return pano_match.group(1), yaw_from_path, pitch_from_path, fov, mode_token, date
+        return check_panoid(pano_match.group(1)), yaw_from_path, pitch_from_path, fov, mode_token, date
 
     # Last resort: try direct panoid parameter
     pano_match = re.search(r"[?&]panoid=([^&]+)", haystack)
@@ -209,3 +209,15 @@ def validate_maps_url(url: str) -> bool:
         "panoid=",  # direct pano id parameter
     ]
     return any(indicator in url for indicator in street_view_indicators)
+
+def check_panoid(data: str):
+    """Check if pano ID needs to be converted to base64, as is required for many/all non-Google panos"""
+    if data.startswith("CIH"):      # Needs to be converted if the ID starts with CI or perhaps CIHM
+        print("Converting pano ID to base64 format")
+        return convert_panoid(data)
+    return data                     # Do not modify if no conversion is required
+
+def convert_panoid(data: str) -> str:
+    """Convert pano ID to base64 format"""
+    payload = f"\x08\n\x12{chr(len(data))}{data}".encode("utf-8")    # Preamble includes length of pano ID to follow
+    return base64.b64encode(payload).decode("utf-8").replace("=", ".")
