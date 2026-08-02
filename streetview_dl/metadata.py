@@ -210,9 +210,9 @@ def validate_maps_url(url: str) -> bool:
     ]
     return any(indicator in url for indicator in street_view_indicators)
 
-def check_panoid(data: str):
+def check_panoid(data: str) -> str:
     """Check if pano ID needs to be converted to base64, as is required for many/all non-Google panos"""
-    if data.startswith("CIH"):      # Needs to be converted if the ID starts with CI or perhaps CIHM
+    if data.startswith("CIH"):      # Needs to be converted if the ID starts with CIHM (based on spot checks, may need a better method in the future)
         print("Converting pano ID to base64 format")
         return convert_panoid(data)
     return data                     # Do not modify if no conversion is required
