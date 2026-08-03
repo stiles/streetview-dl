@@ -297,7 +297,11 @@ class StreetViewDownloader:
         session = self.create_session()
 
         # Calculate tile grid dimensions
-        scale_factor = 2 ** (5 - z)  # Scale down from max resolution
+        if metadata.image_width <= 8192:
+            scale_factor = 2 ** (4 - z)  # Scale down from max resolution, level 4 is max for smaller panos
+        else:
+            scale_factor = 2 ** (5 - z)  # Scale down from max resolution
+
         scaled_width = metadata.image_width // scale_factor
         scaled_height = metadata.image_height // scale_factor
 

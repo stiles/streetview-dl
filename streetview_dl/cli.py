@@ -410,7 +410,11 @@ def process_single_url(
             console.print(f"[dim]Date: {street_view_metadata.date}[/dim]")
         if url_date:
             console.print(f"[dim]URL Date: {url_date}[/dim]")
-
+    
+    if street_view_metadata.image_width <= 8192 and quality == "high":
+        console.print("High quality not available for this pano, switching to medium")
+        quality = "medium"
+    
     # Handle historical discovery mode
     if historical or historical_download:
         if not street_view_metadata.lat or not street_view_metadata.lng:
