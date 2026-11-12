@@ -359,7 +359,7 @@ def process_single_url(
 
     # Validate URL
     if not validate_maps_url(url):
-        raise click.ClickException("Invalid Google Maps Street View URL")
+        raise click.ClickException("Invalid Google Maps or Google Earth Street View URL")
 
     # Get API key
     try:

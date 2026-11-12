@@ -35,6 +35,9 @@ pip install -e .
 # Basic download
 streetview-dl "https://www.google.com/maps/@33.99,-118.40,3a,75y,148h,98t/..."
 
+# Google Earth web Street View links are also supported
+streetview-dl "https://earth.google.com/web/@.../data=..."
+
 # Specify output file
 streetview-dl --output beach-pano.jpg "https://maps.url..."
 
