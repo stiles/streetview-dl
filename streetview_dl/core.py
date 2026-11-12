@@ -1,10 +1,13 @@
 """Core Street View downloading functionality."""
 
+import base64
 import io
 import concurrent.futures as futures
 import math
+import re
 from collections import deque
 from typing import Any, Dict, List, Optional, Tuple
+from urllib.parse import urlsplit
 
 import requests
 from requests.adapters import HTTPAdapter
@@ -51,6 +54,46 @@ class StreetViewDownloader:
         session.mount("https://", adapter)
         return session
 
+    def _raise_for_api_error(self, response: requests.Response) -> None:
+        """Report Google's error details without exposing the API key in URLs."""
+        try:
+            response.raise_for_status()
+        except requests.HTTPError:
+            error = {}
+            try:
+                payload = response.json()
+                if isinstance(payload, dict) and isinstance(payload.get("error"), dict):
+                    error = payload["error"]
+            except ValueError:
+                pass
+
+            parts = [f"Google Map Tiles API error (HTTP {response.status_code})"]
+            endpoint = urlsplit(response.url or "").path
+            if endpoint:
+                parts.append(endpoint)
+            if isinstance(error.get("status"), str):
+                parts.append(error["status"])
+            if isinstance(error.get("message"), str):
+                parts.append(error["message"])
+            for field in ("details", "errors"):
+                details = error.get(field, [])
+                if isinstance(details, list):
+                    for detail in details:
+                        if not isinstance(detail, dict):
+                            continue
+                        for name in ("reason", "message", "location"):
+                            value = detail.get(name)
+                            if isinstance(value, str) and value not in parts:
+                                parts.append(value)
+            if response.status_code == 403:
+                parts.append(
+                    "Check that Map Tiles API is enabled in the API key's project, "
+                    "billing is active, and the key's API and application restrictions "
+                    "allow requests from this CLI."
+                )
+            message = ": ".join(parts).replace(self.api_key, "[REDACTED]")
+            raise requests.HTTPError(message, response=response) from None
+
     def create_session(self) -> str:
         """Create a session for the Map Tiles API."""
         if self._session_cache:
@@ -66,7 +109,7 @@ class StreetViewDownloader:
             },
             timeout=self.timeout,
         )
-        response.raise_for_status()
+        self._raise_for_api_error(response)
         self._session_cache = response.json()["session"]
         return self._session_cache
 
@@ -95,7 +138,41 @@ class StreetViewDownloader:
             params=params,
             timeout=self.timeout,
         )
-        response.raise_for_status()
+        if (
+            response.status_code in (400, 404)
+            and pano_id
+            and re.fullmatch(r"CI[A-Za-z0-9_-]{1,125}", pano_id)
+        ):
+            try:
+                payload = response.json()
+            except ValueError:
+                payload = {}
+            error = payload.get("error") if isinstance(payload, dict) else None
+            errors = error.get("errors") if isinstance(error, dict) else None
+            expected_reason = {400: "invalidRequest", 404: "notFound"}[
+                response.status_code
+            ]
+            if isinstance(errors, list) and any(
+                isinstance(item, dict)
+                and item.get("reason") == expected_reason
+                for item in errors
+            ):
+                # Web photo IDs need the API's source-10 / field-2 envelope.
+                # Wrap the same ID; never substitute a nearby panorama.
+                raw_id = pano_id.encode("ascii")
+                api_id = (
+                    base64.urlsafe_b64encode(
+                        b"\x08\x0a\x12" + bytes([len(raw_id)]) + raw_id
+                    )
+                    .decode("ascii")
+                    .replace("=", ".")
+                )
+                response = self._http.get(
+                    "https://tile.googleapis.com/v1/streetview/metadata",
+                    params={**params, "panoId": api_id},
+                    timeout=self.timeout,
+                )
+        self._raise_for_api_error(response)
         return StreetViewMetadata.from_api_response(response.json())
 
     def discover_historical_dates(
@@ -279,7 +356,7 @@ class StreetViewDownloader:
         url = f"https://tile.googleapis.com/v1/streetview/tiles/{z}/{x}/{y}"
 
         response = self._http.get(url, params=params, timeout=self.timeout)
-        response.raise_for_status()
+        self._raise_for_api_error(response)
         return Image.open(io.BytesIO(response.content)).convert("RGB")
 
     def download_panorama(
@@ -290,14 +367,17 @@ class StreetViewDownloader:
         concurrency: int = 8,
     ) -> Image.Image:
         """Download and stitch panorama tiles."""
-        # Map quality to zoom level
-        zoom_map = {"low": 3, "medium": 4, "high": 5}
-        z = zoom_map.get(quality, 5)
+        # Small photo spheres have fewer zoom levels than Google's larger panoramas.
+        native_zoom = max(
+            0, min(5, math.ceil(math.log2(metadata.image_width / metadata.tile_width)))
+        )
+        zoom_offset = {"low": 2, "medium": 1, "high": 0}
+        z = max(0, native_zoom - zoom_offset.get(quality, 0))
 
         session = self.create_session()
 
         # Calculate tile grid dimensions
-        scale_factor = 2 ** (5 - z)  # Scale down from max resolution
+        scale_factor = 2 ** (native_zoom - z)
         scaled_width = metadata.image_width // scale_factor
         scaled_height = metadata.image_height // scale_factor
 
@@ -331,11 +411,8 @@ class StreetViewDownloader:
         # Define worker that only fetches and returns
         def fetch_coord(coord: tuple[int, int]):
             x, y = coord
-            try:
-                tile = self.fetch_tile(session, metadata.pano_id, z, x, y)
-                return x, y, tile
-            except requests.exceptions.RequestException:
-                return x, y, None
+            tile = self.fetch_tile(session, metadata.pano_id, z, x, y)
+            return x, y, tile
 
         # Download tiles in parallel; paste on main thread to avoid PIL concurrency issues
         with futures.ThreadPoolExecutor(
@@ -344,11 +421,10 @@ class StreetViewDownloader:
             future_map = {executor.submit(fetch_coord, c): c for c in coords}
             for fut in futures.as_completed(future_map):
                 x, y, tile = fut.result()
-                if tile is not None:
-                    canvas.paste(
-                        tile,
-                        (x * metadata.tile_width, y * metadata.tile_height),
-                    )
+                canvas.paste(
+                    tile,
+                    (x * metadata.tile_width, y * metadata.tile_height),
+                )
                 completed_tiles += 1
 
         if console:

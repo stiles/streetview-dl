@@ -1,5 +1,7 @@
 """Street View metadata extraction and handling."""
 
+import base64
+import binascii
 import re
 import urllib.parse as urlparse
 from typing import Any, Dict, Optional, Tuple
@@ -93,11 +95,73 @@ class StreetViewMetadata(BaseModel):
         return self.model_dump(exclude_none=True)
 
 
+def _protobuf_bytes_field(data: bytes, field_number: int) -> Optional[bytes]:
+    """Read a length-delimited field without a protobuf runtime dependency."""
+    offset = 0
+
+    def read_varint() -> int:
+        nonlocal offset
+        value = 0
+        for shift in range(0, 64, 7):
+            if offset >= len(data):
+                raise ValueError("Truncated protobuf varint")
+            byte = data[offset]
+            offset += 1
+            value |= (byte & 0x7F) << shift
+            if not byte & 0x80:
+                return value
+        raise ValueError("Invalid protobuf varint")
+
+    while offset < len(data):
+        tag = read_varint()
+        if tag >> 3 == 0:
+            raise ValueError("Invalid protobuf field number")
+        wire_type = tag & 7
+        if wire_type == 0:
+            read_varint()
+            continue
+        if wire_type == 2:
+            size = read_varint()
+        elif wire_type in (1, 5):
+            size = 8 if wire_type == 1 else 4
+        else:
+            raise ValueError("Unsupported protobuf wire type")
+        end = offset + size
+        if end > len(data):
+            raise ValueError("Truncated protobuf field")
+        if tag >> 3 == field_number and wire_type == 2:
+            return data[offset:end]
+        offset = end
+    return None
+
+
+def _extract_earth_pano_id(path: str) -> Optional[str]:
+    """Earth's base64url protobuf stores the panorama ID in field 4 / field 1."""
+    match = re.search(r"/data=([^/]+)$", path)
+    if not match:
+        return None
+    encoded = urlparse.unquote(match.group(1))
+    try:
+        data = base64.b64decode(
+            encoded + "=" * (-len(encoded) % 4), altchars=b"-_", validate=True
+        )
+        street_view = _protobuf_bytes_field(data, 4)
+        if street_view is None:
+            return None
+        pano = _protobuf_bytes_field(street_view, 1)
+        if pano is None:
+            return None
+        pano_id = pano.decode("ascii")
+    except (ValueError, binascii.Error):
+        return None
+    return pano_id if re.fullmatch(r"[A-Za-z0-9_-]+", pano_id) else None
+
+
 def extract_from_maps_url(
     url: str,
 ) -> Tuple[Optional[str], Optional[float], Optional[float], Optional[float], Optional[str], Optional[str]]:
     """
-    Extract panorama ID, yaw, pitch, FOV, mode token, and date from Google Maps URL.
+    Extract panorama ID, yaw, pitch, FOV, mode token, and date from Maps or Earth.
 
     Returns:
         Tuple of (pano_id, yaw, pitch, fov, mode_token, date). Values may be None if not found.
@@ -141,6 +205,17 @@ def extract_from_maps_url(
             pitch_from_path = float(pitch_match.group(1))
         except (ValueError, TypeError):
             pitch_from_path = None
+
+    if parsed.hostname == "earth.google.com" and parsed.path.startswith("/web/"):
+        earth_mode = "0d" if ",0d," in parsed.path else None
+        return (
+            _extract_earth_pano_id(parsed.path),
+            yaw_from_path,
+            pitch_from_path,
+            fov,
+            earth_mode,
+            None,
+        )
     
     # Look for date parameter (e.g., "5s20221201T000000")
     date_match = re.search(r"!5s(\d{8}T\d{6})!", haystack)
@@ -174,8 +249,8 @@ def extract_from_maps_url(
 
         return pano_id, yaw, pitch, fov, mode_token, date
 
-    # Fallback: try to extract panorama ID from the !1s token pattern
-    pano_match = re.search(r"!3m5!1s([^!]+)", haystack)
+    # Maps uses both five- and six-field panorama records, including photo spheres.
+    pano_match = re.search(r"!3m[56]!1s([^!]+)", haystack)
     if pano_match:
         return pano_match.group(1), yaw_from_path, pitch_from_path, fov, mode_token, date
 
@@ -188,9 +263,17 @@ def extract_from_maps_url(
 
 
 def validate_maps_url(url: str) -> bool:
-    """Check if URL looks like a valid Google Maps Street View URL."""
+    """Check if URL looks like a valid Google Maps or Earth Street View URL."""
     if not url:
         return False
+
+    parsed = urlparse.urlparse(url)
+    if parsed.hostname == "earth.google.com":
+        return (
+            parsed.scheme in ("http", "https")
+            and parsed.path.startswith("/web/")
+            and _extract_earth_pano_id(parsed.path) is not None
+        )
 
     # Must be a Google Maps domain
     if not any(

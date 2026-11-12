@@ -1,10 +1,98 @@
-import pytest
+from unittest.mock import patch
 
+import pytest
+from click.testing import CliRunner
+
+from streetview_dl.cli import main
 from streetview_dl.metadata import (
     extract_from_maps_url,
     validate_maps_url,
     StreetViewMetadata,
 )
+
+
+EARTH_URL = (
+    "https://earth.google.com/web/@38.58513623,68.7868674,846.01448556a,"
+    "0d,90y,307.64599261h,85.13773982t,0r/data="
+    "CgRCAggBIhoKFkNJSE0wb2dLRUlDQWdJRDQxdWI3S0EQBTIpCicKJQoh"
+    "MWNfVG5OTklZdno4c0IzZThQTm5ON3R5XzVRX29qTXpUIAE6AwoBMEICCABKBwiVseMaEAE"
+    "?utm_source=earthpro&utm_medium=product&utm_campaign=oct26"
+    "&utm_content=launch_earth&authuser=0"
+)
+
+MAPS_URL = (
+    "https://www.google.com/maps/@38.5851631,68.7868195,3a,75y,70.3h,99.32t/"
+    "data=!3m8!1e1!3m6!1sCIABIhADydER5C1nfmfyqToADS0P!2e10!3e11!6s"
+    "https:%2F%2Flh3.googleusercontent.com%2Fgpms-cs-s%2F"
+    "AM4Q-U_sVsh7TAPS8icq5PMf_Cqg5P04akCa-XHfPpPT4ded7Q9a5kuIIrmUd-PQ2-"
+    "lg7a8EUMFCGDIqGIgQEgGzbTpNp1fjGqyx_c_O7oRbG-1kZCu75nsNgl4XKCDR9Wzuot-f8EQ2G7Ij9ZaG"
+    "%3Dw900-h600-k-no-pi-9.316254590464311-ya70.30424343540929-ro0-fo100"
+    "!7i3584!8i1792?entry=ttu&g_ep=EgoyMDI2MTExMC4wIKXMDSoASAFQAw%3D%3D"
+)
+
+
+def test_extract_from_maps_url_contributed_photo():
+    assert validate_maps_url(MAPS_URL) is True
+    assert extract_from_maps_url(MAPS_URL) == (
+        "CIABIhADydER5C1nfmfyqToADS0P", 70.3, 99.32, 75.0, "3a", None
+    )
+
+
+def test_extract_from_earth_url():
+    assert validate_maps_url(EARTH_URL) is True
+    pano_id, yaw, pitch, fov, mode_token, url_date = extract_from_maps_url(EARTH_URL)
+    assert pano_id == "CIHM0ogKEICAgID41ub7KA"
+    assert yaw == pytest.approx(307.64599261)
+    assert pitch == pytest.approx(85.13773982)
+    assert fov == 90.0
+    assert mode_token == "0d"
+    assert url_date is None
+
+
+@pytest.mark.parametrize("data", ["", "%%%", "A", "CgRCAggB", "IhoKFkNJ", "IoA="])
+def test_invalid_earth_data(data):
+    url = f"https://earth.google.com/web/@1,2,100a,0d,90y/data={data}"
+    assert validate_maps_url(url) is False
+    assert extract_from_maps_url(url)[0] is None
+
+
+def test_earth_url_without_street_view():
+    assert validate_maps_url("https://earth.google.com/web/@1,2,100a") is False
+    assert validate_maps_url(EARTH_URL.replace("earth.google.com", "example.com")) is False
+    assert validate_maps_url(EARTH_URL.replace("earth.google.com", "earth.google.com.example.com")) is False
+
+
+@pytest.mark.parametrize(
+    "url,pano_id,yaw,mode_token",
+    [
+        (EARTH_URL, "CIHM0ogKEICAgID41ub7KA", 307.64599261, "0d"),
+        (MAPS_URL, "CIABIhADydER5C1nfmfyqToADS0P", 70.3, "3a"),
+    ],
+)
+def test_street_view_url_metadata_cli(tmp_path, url, pano_id, yaw, mode_token):
+    metadata = StreetViewMetadata(
+        pano_id=pano_id,
+        image_width=12000,
+        image_height=6000,
+        tile_width=512,
+        tile_height=512,
+    )
+    output = tmp_path / "metadata.json"
+    with patch("streetview_dl.cli.get_api_key", return_value="test_key"), patch(
+        "streetview_dl.cli.validate_api_key", return_value=True
+    ), patch("streetview_dl.cli.StreetViewDownloader") as downloader_class:
+        downloader = downloader_class.return_value
+        downloader.get_metadata.return_value = metadata
+        result = CliRunner().invoke(
+            main, [url, "--metadata-only", "--output", str(output)]
+        )
+
+    assert result.exit_code == 0, result.output
+    downloader.get_metadata.assert_called_once_with(pano_id=pano_id)
+    downloader.download_panorama.assert_not_called()
+    assert output.exists()
+    assert metadata.url_yaw == pytest.approx(yaw)
+    assert metadata.url_mode_token == mode_token
 
 
 def test_validate_maps_url_true():
